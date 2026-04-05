@@ -1,5 +1,5 @@
 {
-  "version": "1.1",
+  "version": "1.2",
   "build": 2,
   "downloadURL": "file:///Users/meteorite/macclipper/dist/MacClipper.dmg",
   "notes": "Edit this file in VS Code. To test the updater, change `build` to 3 and click Check Now in MacClipper.",
