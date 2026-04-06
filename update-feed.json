@@ -1,7 +1,7 @@
 {
-  "version": "1.2",
+  "version": "1.1",
   "build": 2,
-  "downloadURL": ""https://raw.githubusercontent.com/Userbro20/macclip-auto-update/main/MacClipper.dmg"",
-  "notes": "Edit this file in VS Code. To test the updater, change `build` to 3 and click Check Now in MacClipper.",
+  "downloadURL": "https://raw.githubusercontent.com/Userbro20/macclip-auto-update/main/MacClipper.dmg",
+  "notes": "Hosted from GitHub.",
   "publishedAt": "2026-04-05T17:45:00Z"
 }
