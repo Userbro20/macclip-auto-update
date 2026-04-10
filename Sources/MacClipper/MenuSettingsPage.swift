@@ -28,6 +28,16 @@ struct MenuSettingsPage: View {
         binding(for: \.captureSystemAudio)
     }
 
+    private var systemAudioLevelBinding: Binding<Double> {
+        Binding(
+            get: { model.systemAudioLevel * 100 },
+            set: {
+                model.systemAudioLevel = $0 / 100
+                model.savePreferences()
+            }
+        )
+    }
+
     private var showCursorBinding: Binding<Bool> {
         binding(for: \.showCursor)
     }
@@ -269,13 +279,34 @@ struct MenuSettingsPage: View {
 
                     SlateRow(
                         title: "System Audio",
-                        subtitle: model.captureSystemAudio ? "Included in clips" : "Muted from clips",
+                        subtitle: model.systemAudioSettingsSubtitle,
                         systemImage: "speaker.wave.3.fill",
                         isSelected: model.captureSystemAudio,
                         tint: SlateTheme.accent,
                         density: density
                     ) {
                         SlateToggleButton(isOn: systemAudioBinding)
+                    }
+
+                    SlateRow(
+                        title: "System Audio Level",
+                        subtitle: model.systemAudioLevelSubtitle,
+                        systemImage: "slider.horizontal.3",
+                        isSelected: model.captureSystemAudio,
+                        tint: SlateTheme.accent,
+                        density: density
+                    ) {
+                        HStack(spacing: 8) {
+                            Slider(value: systemAudioLevelBinding, in: 0...100, step: 5)
+                                .tint(SlateTheme.accent)
+                                .frame(width: 120)
+                                .disabled(!model.captureSystemAudio)
+
+                            Text("\(model.systemAudioLevelPercent)%")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(model.captureSystemAudio ? SlateTheme.textPrimary : SlateTheme.textSecondary)
+                                .frame(width: 38, alignment: .trailing)
+                        }
                     }
 
                     SlateRow(

@@ -6,6 +6,7 @@ struct PersistedAppSettings: Codable {
     var includeMicrophone: Bool
     var selectedMicrophoneID: String?
     var captureSystemAudio: Bool
+    var systemAudioLevel: Double?
     var showCursor: Bool
     var enableGameNotifications: Bool
     var captureResolutionPreset: CaptureResolutionPreset

@@ -88,10 +88,21 @@ struct RecorderSettings {
     var includeMicrophone: Bool
     var preferredMicrophoneDeviceID: String?
     var captureSystemAudio: Bool
+    var systemAudioLevel: Double
     var showCursor: Bool
     var preferredDisplayID: UInt32?
     var resolutionPreset: CaptureResolutionPreset
     var videoQuality: VideoQualityPreset
+}
+
+private struct AudioTrackSlot: Hashable {
+    let role: CapturedAudioTrackRole
+    let ordinal: Int
+}
+
+private struct AudioTrackEntry {
+    let slot: AudioTrackSlot
+    let track: AVMutableCompositionTrack
 }
 
 enum RecorderError: LocalizedError {
@@ -207,6 +218,7 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
         includeMicrophone: true,
         preferredMicrophoneDeviceID: nil,
         captureSystemAudio: true,
+        systemAudioLevel: 0.75,
         showCursor: true,
         preferredDisplayID: nil,
         resolutionPreset: .automatic,
@@ -419,7 +431,8 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
             videoQuality: settings.videoQuality,
             saveDirectory: settings.saveDirectory,
             captureSystemAudio: settings.captureSystemAudio,
-            includeMicrophoneInExport: settings.includeMicrophone && !suppressMicrophoneInExport
+            includeMicrophoneInExport: settings.includeMicrophone && !suppressMicrophoneInExport,
+            systemAudioLevel: settings.systemAudioLevel
         )
         log("saveReplayClip completed output=\(outputURL.lastPathComponent)")
         return outputURL
@@ -851,14 +864,16 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
         videoQuality: VideoQualityPreset,
         saveDirectory: URL,
         captureSystemAudio: Bool,
-        includeMicrophoneInExport: Bool
+        includeMicrophoneInExport: Bool,
+        systemAudioLevel: Double
     ) async throws -> URL {
         let composition = AVMutableComposition()
         guard let videoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
             throw RecorderError.exportFailed("Unable to create the output video track.")
         }
 
-        var audioTracks: [AVMutableCompositionTrack] = []
+        var audioTracksBySlot: [AudioTrackSlot: AVMutableCompositionTrack] = [:]
+        var audioTrackEntries: [AudioTrackEntry] = []
         var insertTime: CMTime = .zero
 
         for segment in segments {
@@ -878,9 +893,15 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
 
             let sourceAudioTracks = asset.tracks(withMediaType: .audio)
             let hasMultipleAudioTracks = sourceAudioTracks.count > 1
-            var insertedAudioTrackCount = 0
+            var includedAudioTrackOrdinal = 0
 
             for sourceAudioTrack in sourceAudioTracks {
+                let audioTrackRole = Self.resolvedAudioTrackRole(
+                    for: sourceAudioTrack,
+                    captureSystemAudio: captureSystemAudio,
+                    includeMicrophoneInExport: includeMicrophoneInExport,
+                    hasMultipleAudioTracks: hasMultipleAudioTracks
+                )
                 let shouldIncludeTrack = Self.shouldIncludeAudioTrack(
                     sourceAudioTrack,
                     captureSystemAudio: captureSystemAudio,
@@ -889,15 +910,24 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
                 )
                 guard shouldIncludeTrack else { continue }
 
-                if audioTracks.count <= insertedAudioTrackCount,
-                   let newAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) {
-                    audioTracks.append(newAudioTrack)
+                let audioTrackSlot = AudioTrackSlot(
+                    role: audioTrackRole,
+                    ordinal: audioTrackRole == .unknown ? includedAudioTrackOrdinal : 0
+                )
+
+                let compositionAudioTrack: AVMutableCompositionTrack
+                if let existingAudioTrack = audioTracksBySlot[audioTrackSlot] {
+                    compositionAudioTrack = existingAudioTrack
+                } else if let newAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) {
+                    audioTracksBySlot[audioTrackSlot] = newAudioTrack
+                    audioTrackEntries.append(AudioTrackEntry(slot: audioTrackSlot, track: newAudioTrack))
+                    compositionAudioTrack = newAudioTrack
+                } else {
+                    continue
                 }
 
-                if insertedAudioTrackCount < audioTracks.count {
-                    try audioTracks[insertedAudioTrackCount].insertTimeRange(timeRange, of: sourceAudioTrack, at: insertTime)
-                    insertedAudioTrackCount += 1
-                }
+                try compositionAudioTrack.insertTimeRange(timeRange, of: sourceAudioTrack, at: insertTime)
+                includedAudioTrackOrdinal += 1
             }
 
             insertTime = CMTimeAdd(insertTime, duration)
@@ -936,6 +966,7 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
             exporter.shouldOptimizeForNetworkUse = true
             exporter.outputURL = outputURL
             exporter.outputFileType = .mov
+            exporter.audioMix = Self.makeAudioMix(for: audioTrackEntries, systemAudioLevel: systemAudioLevel)
 
             if applyWatermark {
                 exporter.videoComposition = makeWatermarkVideoComposition(for: composition, exportedAt: exportedAt, videoQuality: videoQuality)
@@ -1008,6 +1039,43 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
         case .unknown:
             return captureSystemAudio || includeMicrophoneInExport
         }
+    }
+
+    private static func resolvedAudioTrackRole(
+        for track: AVAssetTrack,
+        captureSystemAudio: Bool,
+        includeMicrophoneInExport: Bool,
+        hasMultipleAudioTracks: Bool
+    ) -> CapturedAudioTrackRole {
+        guard hasMultipleAudioTracks else {
+            if captureSystemAudio && !includeMicrophoneInExport {
+                return .system
+            }
+
+            if includeMicrophoneInExport && !captureSystemAudio {
+                return .microphone
+            }
+
+            return .unknown
+        }
+
+        return inferredAudioTrackRole(for: track)
+    }
+
+    private static func makeAudioMix(for audioTrackEntries: [AudioTrackEntry], systemAudioLevel: Double) -> AVAudioMix? {
+        let normalizedSystemAudioLevel = Float(min(1.0, max(0.0, systemAudioLevel)))
+        guard audioTrackEntries.contains(where: { $0.slot.role == .system }), abs(normalizedSystemAudioLevel - 1.0) > 0.001 else {
+            return nil
+        }
+
+        let audioMix = AVMutableAudioMix()
+        audioMix.inputParameters = audioTrackEntries.map { entry in
+            let parameters = AVMutableAudioMixInputParameters(track: entry.track)
+            let volume: Float = entry.slot.role == .system ? normalizedSystemAudioLevel : 1.0
+            parameters.setVolume(volume, at: .zero)
+            return parameters
+        }
+        return audioMix
     }
 
     private static func inferredAudioTrackRole(for track: AVAssetTrack) -> CapturedAudioTrackRole {

@@ -33,6 +33,16 @@ struct SettingsView: View {
         binding(for: \.captureSystemAudio)
     }
 
+    private var systemAudioLevelBinding: Binding<Double> {
+        Binding(
+            get: { model.systemAudioLevel * 100 },
+            set: {
+                model.systemAudioLevel = $0 / 100
+                model.savePreferences()
+            }
+        )
+    }
+
     private var showCursorBinding: Binding<Bool> {
         binding(for: \.showCursor)
     }
@@ -266,12 +276,32 @@ struct SettingsView: View {
 
                         SlateRow(
                             title: "System Audio",
-                            subtitle: model.captureSystemAudio ? "Desktop and app sound will be captured." : "Desktop sound is muted from clips.",
+                            subtitle: model.systemAudioSettingsSubtitle,
                             systemImage: "speaker.wave.3.fill",
                             isSelected: model.captureSystemAudio,
                             tint: SlateTheme.accent
                         ) {
                             SlateToggleButton(isOn: systemAudioBinding)
+                        }
+
+                        SlateRow(
+                            title: "System Audio Level",
+                            subtitle: model.systemAudioLevelSubtitle,
+                            systemImage: "slider.horizontal.3",
+                            isSelected: model.captureSystemAudio,
+                            tint: SlateTheme.accent
+                        ) {
+                            HStack(spacing: 12) {
+                                Slider(value: systemAudioLevelBinding, in: 0...100, step: 5)
+                                    .tint(SlateTheme.accent)
+                                    .frame(width: 220)
+                                    .disabled(!model.captureSystemAudio)
+
+                                Text("\(model.systemAudioLevelPercent)%")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(model.captureSystemAudio ? SlateTheme.textPrimary : SlateTheme.textSecondary)
+                                    .frame(width: 48, alignment: .trailing)
+                            }
                         }
 
                         SlateRow(

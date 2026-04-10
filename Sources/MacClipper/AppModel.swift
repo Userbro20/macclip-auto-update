@@ -127,6 +127,7 @@ struct CaptureDeviceSettingsProfile: Codable {
     let clipDuration: Double
     let includeMicrophone: Bool
     let captureSystemAudio: Bool
+    let systemAudioLevel: Double?
     let showCursor: Bool
     let captureResolutionPreset: CaptureResolutionPreset
     let videoQualityPreset: VideoQualityPreset
@@ -150,6 +151,7 @@ final class AppModel: ObservableObject {
     @Published var includeMicrophone: Bool
     @Published var selectedMicrophoneID: String
     @Published var captureSystemAudio: Bool
+    @Published var systemAudioLevel: Double
     @Published var showCursor: Bool
     @Published var enableGameNotifications: Bool
     @Published var captureResolutionPreset: CaptureResolutionPreset
@@ -215,6 +217,7 @@ final class AppModel: ObservableObject {
         includeMicrophone = persistedSettings.includeMicrophone
         selectedMicrophoneID = persistedSettings.selectedMicrophoneID ?? ""
         captureSystemAudio = persistedSettings.captureSystemAudio
+        systemAudioLevel = Self.normalizedSystemAudioLevel(persistedSettings.systemAudioLevel ?? 0.75)
         showCursor = persistedSettings.showCursor
         enableGameNotifications = persistedSettings.enableGameNotifications
         captureResolutionPreset = persistedSettings.captureResolutionPreset
@@ -303,6 +306,22 @@ final class AppModel: ObservableObject {
 
     var microphoneStatusText: String {
         includeMicrophone ? "Microphone On" : "Microphone Off"
+    }
+
+    var systemAudioLevelPercent: Int {
+        Int((systemAudioLevel * 100).rounded())
+    }
+
+    var systemAudioSettingsSubtitle: String {
+        captureSystemAudio
+            ? "Desktop and app sound will be captured at \(systemAudioLevelPercent)% volume."
+            : "Desktop sound is muted from clips."
+    }
+
+    var systemAudioLevelSubtitle: String {
+        captureSystemAudio
+            ? "Lower this if game or desktop audio is overpowering your clips."
+            : "Turn System Audio on to adjust its recorded volume."
     }
 
     var microphoneSelectionSubtitle: String {
@@ -434,6 +453,7 @@ final class AppModel: ObservableObject {
             includeMicrophone: includeMicrophone && !microphoneCaptureSuppressed,
             preferredMicrophoneDeviceID: resolvedSelectedMicrophoneDeviceID,
             captureSystemAudio: captureSystemAudio,
+            systemAudioLevel: systemAudioLevel,
             showCursor: showCursor,
             preferredDisplayID: UInt32(selectedCaptureDisplayID),
             resolutionPreset: resolvedResolutionPreset,
@@ -458,12 +478,14 @@ final class AppModel: ObservableObject {
         unlockedPaidFeatures = FeatureActivationManager.normalizedFeatures(unlockedPaidFeatures)
         captureResolutionPreset = resolvedCaptureResolutionPreset(for: captureResolutionPreset)
         videoQualityPreset = effectiveVideoQualityPreset(for: videoQualityPreset, resolutionPreset: captureResolutionPreset)
+        systemAudioLevel = Self.normalizedSystemAudioLevel(systemAudioLevel)
 
         defaults.set(clipDuration, forKey: "clipDuration")
         defaults.set(startReplayBufferOnLaunch, forKey: "startReplayBufferOnLaunch")
         defaults.set(includeMicrophone, forKey: "includeMicrophone")
         defaults.set(selectedMicrophoneID, forKey: "selectedMicrophoneID")
         defaults.set(captureSystemAudio, forKey: "captureSystemAudio")
+        defaults.set(systemAudioLevel, forKey: "systemAudioLevel")
         defaults.set(showCursor, forKey: "showCursor")
         defaults.set(enableGameNotifications, forKey: "enableGameNotifications")
         defaults.set(captureResolutionPreset.rawValue, forKey: "captureResolutionPreset")
@@ -1819,6 +1841,7 @@ final class AppModel: ObservableObject {
         clipDuration = Self.normalizedClipDuration(profile.clipDuration)
         includeMicrophone = profile.includeMicrophone
         captureSystemAudio = profile.captureSystemAudio
+        systemAudioLevel = Self.normalizedSystemAudioLevel(profile.systemAudioLevel ?? 0.75)
         showCursor = profile.showCursor
         captureResolutionPreset = resolvedCaptureResolutionPreset(for: profile.captureResolutionPreset)
         videoQualityPreset = effectiveVideoQualityPreset(for: profile.videoQualityPreset, resolutionPreset: captureResolutionPreset)
@@ -1831,6 +1854,7 @@ final class AppModel: ObservableObject {
             clipDuration: Self.normalizedClipDuration(clipDuration),
             includeMicrophone: includeMicrophone,
             captureSystemAudio: captureSystemAudio,
+            systemAudioLevel: systemAudioLevel,
             showCursor: showCursor,
             captureResolutionPreset: captureResolutionPreset,
             videoQualityPreset: videoQualityPreset
@@ -1855,6 +1879,10 @@ final class AppModel: ObservableObject {
 
     private static func normalizedClipDuration(_ duration: Double) -> Double {
         min(120, max(15, (duration / 5).rounded() * 5))
+    }
+
+    private static func normalizedSystemAudioLevel(_ level: Double) -> Double {
+        min(1.0, max(0.0, (level * 20).rounded() / 20))
     }
 
     private static func logTimestampString(from date: Date) -> String {
@@ -1898,6 +1926,7 @@ final class AppModel: ObservableObject {
             includeMicrophone: includeMicrophone,
             selectedMicrophoneID: selectedMicrophoneID.isEmpty ? nil : selectedMicrophoneID,
             captureSystemAudio: captureSystemAudio,
+            systemAudioLevel: systemAudioLevel,
             showCursor: showCursor,
             enableGameNotifications: enableGameNotifications,
             captureResolutionPreset: captureResolutionPreset,
@@ -1939,6 +1968,7 @@ final class AppModel: ObservableObject {
                 includeMicrophone: storedSettings.includeMicrophone,
                 selectedMicrophoneID: storedSettings.selectedMicrophoneID,
                 captureSystemAudio: storedSettings.captureSystemAudio,
+                systemAudioLevel: normalizedSystemAudioLevel(storedSettings.systemAudioLevel ?? 0.75),
                 showCursor: storedSettings.showCursor,
                 enableGameNotifications: storedSettings.enableGameNotifications,
                 captureResolutionPreset: storedSettings.captureResolutionPreset,
@@ -1965,6 +1995,7 @@ final class AppModel: ObservableObject {
             includeMicrophone: defaults.object(forKey: "includeMicrophone") as? Bool ?? false,
             selectedMicrophoneID: defaults.string(forKey: "selectedMicrophoneID"),
             captureSystemAudio: defaults.object(forKey: "captureSystemAudio") as? Bool ?? true,
+            systemAudioLevel: normalizedSystemAudioLevel((defaults.object(forKey: "systemAudioLevel") as? NSNumber)?.doubleValue ?? 0.75),
             showCursor: defaults.object(forKey: "showCursor") as? Bool ?? true,
             enableGameNotifications: defaults.object(forKey: "enableGameNotifications") as? Bool ?? true,
             captureResolutionPreset: CaptureResolutionPreset(rawValue: defaults.string(forKey: "captureResolutionPreset") ?? "automatic") ?? .automatic,
