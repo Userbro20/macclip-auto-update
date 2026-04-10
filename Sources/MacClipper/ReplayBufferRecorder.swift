@@ -192,6 +192,7 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
     private let exportTimeoutPadding: TimeInterval = 8
 
     var onUnexpectedStop: (@MainActor (Error) -> Void)?
+    var onMicrophoneSampleBuffer: ((CMSampleBuffer) -> Void)?
 
     private var stream: SCStream?
     private var currentWriter: LiveSegmentWriter?
@@ -471,6 +472,10 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
         if outputType == .screen,
            !Self.isRecordableScreenSample(sampleBuffer) {
             return
+        }
+
+        if outputType == .microphone {
+            onMicrophoneSampleBuffer?(sampleBuffer)
         }
 
         if outputType == .screen,

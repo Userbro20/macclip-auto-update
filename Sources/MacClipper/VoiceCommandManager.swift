@@ -20,6 +20,11 @@ private enum VoiceCommandError: LocalizedError {
 }
 
 final class VoiceCommandManager: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate, @unchecked Sendable {
+    private enum AudioInputMode {
+        case dedicatedCapture
+        case externalMicrophoneFeed
+    }
+
     private let sessionQueue = DispatchQueue(label: "MacClipper.voice-command.session")
     private let captureSession = AVCaptureSession()
     private let audioOutput = AVCaptureAudioDataOutput()
@@ -37,6 +42,7 @@ final class VoiceCommandManager: NSObject, AVCaptureAudioDataOutputSampleBufferD
     var onClipCommand: ((String) -> Void)?
 
     private var preferredMicrophoneDeviceID: String?
+    private var audioInputMode: AudioInputMode = .dedicatedCapture
     private var currentInput: AVCaptureDeviceInput?
     private var speechRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
@@ -69,6 +75,26 @@ final class VoiceCommandManager: NSObject, AVCaptureAudioDataOutputSampleBufferD
 
             guard self.requestedStart else { return }
             self.restartListeningLocked(reason: "microphone selection changed")
+        }
+    }
+
+    func setUsesExternalMicrophoneFeed(_ usesExternalMicrophoneFeed: Bool) {
+        let mode: AudioInputMode = usesExternalMicrophoneFeed ? .externalMicrophoneFeed : .dedicatedCapture
+
+        sessionQueue.async {
+            guard self.audioInputMode != mode else { return }
+            self.audioInputMode = mode
+
+            guard self.requestedStart else { return }
+            self.restartListeningLocked(reason: usesExternalMicrophoneFeed ? "switching to recorder microphone feed" : "switching to dedicated microphone capture")
+        }
+    }
+
+    func appendExternalAudioSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
+        sessionQueue.async {
+            guard self.audioInputMode == .externalMicrophoneFeed else { return }
+            guard self.requestedStart, self.isListening else { return }
+            self.appendSampleBufferToSpeechRequestLocked(sampleBuffer)
         }
     }
 
@@ -125,31 +151,39 @@ final class VoiceCommandManager: NSObject, AVCaptureAudioDataOutputSampleBufferD
             return
         }
 
-        do {
-            try configureCaptureSessionLocked()
-        } catch {
-            AppLogger.shared.log("Voice", "voice command listener failed to configure message=\(error.localizedDescription)")
-            scheduleRestartLocked(reason: "audio pipeline unavailable")
-            return
-        }
+        switch audioInputMode {
+        case .dedicatedCapture:
+            do {
+                try configureCaptureSessionLocked()
+            } catch {
+                AppLogger.shared.log("Voice", "voice command listener failed to configure message=\(error.localizedDescription)")
+                scheduleRestartLocked(reason: "audio pipeline unavailable")
+                return
+            }
 
-        startRecognitionTaskLocked(with: speechRecognizer)
+            startRecognitionTaskLocked(with: speechRecognizer)
 
-        if !captureSession.isRunning {
-            captureSession.startRunning()
-        }
+            if !captureSession.isRunning {
+                captureSession.startRunning()
+            }
 
-        guard captureSession.isRunning else {
-            stopRecognitionTaskLocked()
-            AppLogger.shared.log("Voice", "voice command listener failed to start capture session")
-            scheduleRestartLocked(reason: "capture session failed to start")
-            return
+            guard captureSession.isRunning else {
+                stopRecognitionTaskLocked()
+                AppLogger.shared.log("Voice", "voice command listener failed to start capture session")
+                scheduleRestartLocked(reason: "capture session failed to start")
+                return
+            }
+        case .externalMicrophoneFeed:
+            if captureSession.isRunning {
+                captureSession.stopRunning()
+            }
+            startRecognitionTaskLocked(with: speechRecognizer)
         }
 
         isListening = true
         AppLogger.shared.log(
             "Voice",
-            "voice command listener started phrase=Mac clip that microphone=\(activeMicrophoneDescriptionLocked())"
+            "voice command listener started phrase=Mac clip that microphone=\(activeMicrophoneDescriptionLocked()) mode=\(audioInputModeDescriptionLocked())"
         )
     }
 
@@ -307,7 +341,12 @@ final class VoiceCommandManager: NSObject, AVCaptureAudioDataOutputSampleBufferD
     private func restartRecognitionTaskLocked(reason: String) {
         guard requestedStart else { return }
 
-        guard captureSession.isRunning, let speechRecognizer else {
+        guard let speechRecognizer else {
+            scheduleRestartLocked(reason: reason)
+            return
+        }
+
+        if audioInputMode == .dedicatedCapture && !captureSession.isRunning {
             scheduleRestartLocked(reason: reason)
             return
         }
@@ -348,16 +387,39 @@ final class VoiceCommandManager: NSObject, AVCaptureAudioDataOutputSampleBufferD
     }
 
     private func activeMicrophoneDescriptionLocked() -> String {
-        currentInput?.device.localizedName ?? "System Default"
+        switch audioInputMode {
+        case .dedicatedCapture:
+            return currentInput?.device.localizedName ?? "System Default"
+        case .externalMicrophoneFeed:
+            if let preferredMicrophoneDeviceID,
+               let preferredDevice = AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone], mediaType: .audio, position: .unspecified).devices.first(where: { $0.uniqueID == preferredMicrophoneDeviceID }) {
+                return preferredDevice.localizedName
+            }
+            return "Recorder Microphone Feed"
+        }
     }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard audioInputMode == .dedicatedCapture else { return }
         guard requestedStart, isListening else { return }
+        appendSampleBufferToSpeechRequestLocked(sampleBuffer)
+    }
+
+    private func appendSampleBufferToSpeechRequestLocked(_ sampleBuffer: CMSampleBuffer) {
         guard CMSampleBufferDataIsReady(sampleBuffer) else { return }
         guard CMSampleBufferGetNumSamples(sampleBuffer) > 0 else { return }
         guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer) else { return }
         guard CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription) != nil else { return }
         speechRequest?.appendAudioSampleBuffer(sampleBuffer)
+    }
+
+    private func audioInputModeDescriptionLocked() -> String {
+        switch audioInputMode {
+        case .dedicatedCapture:
+            return "dedicated"
+        case .externalMicrophoneFeed:
+            return "shared-recorder-feed"
+        }
     }
 
     private func matchedTriggerCommand(in normalizedTranscript: String) -> String? {

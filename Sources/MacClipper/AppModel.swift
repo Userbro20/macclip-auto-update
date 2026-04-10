@@ -137,17 +137,6 @@ final class AppModel: ObservableObject {
     private static let lockedDiscordWebhookURL = "https://discord.com/api/webhooks/1491091224180818160/2MutnrfaVcaH5l2GM-XRhw90z_ec0apc6TQ2Pib_5y_9hxP3Q3uPhRUhmlc4bMhfI0RW"
     private static let captureDeviceProfilesKey = "captureDeviceProfiles"
     private static let defaultPurchasePortalURLString = "http://127.0.0.1:4173/buy-4k.html"
-    private static let knownCommunicationKeywords = [
-        "discord",
-        "zoom",
-        "slack",
-        "teams",
-        "facetime",
-        "skype",
-        "telegram",
-        "signal",
-        "webex"
-    ]
 
     @Published var statusText: String = "Capture ready"
     @Published var isRecording: Bool = false
@@ -255,6 +244,9 @@ final class AppModel: ObservableObject {
         recorder.onUnexpectedStop = { [weak self] error in
             self?.handleUnexpectedRecorderStop(error)
         }
+        recorder.onMicrophoneSampleBuffer = { [weak self] sampleBuffer in
+            self?.voiceCommandManager.appendExternalAudioSampleBuffer(sampleBuffer)
+        }
 
         voiceCommandManager.onClipCommand = { [weak self] command in
             Task { @MainActor in
@@ -334,6 +326,9 @@ final class AppModel: ObservableObject {
 
     var microphoneSettingsSubtitle: String {
         let inputDescription = selectedMicrophoneID.isEmpty ? "the system default input" : selectedMicrophoneSummary
+        let voiceTriggerNote = shouldUseRecorderMicrophoneFeedForVoiceCommands
+            ? " Voice trigger is sharing the same live capture mic instead of opening a second mic session."
+            : ""
 
         if includeMicrophone {
             switch AVCaptureDevice.authorizationStatus(for: .audio) {
@@ -342,11 +337,11 @@ final class AppModel: ObservableObject {
             case .notDetermined:
                 return microphoneCaptureSuppressed
                     ? "Allow microphone access so \(inputDescription) can record your voice"
-                    : "Ready on \(inputDescription)"
+                    : "Ready on \(inputDescription).\(voiceTriggerNote)"
             case .authorized:
-                return "Ready on \(inputDescription)"
+                return "Ready on \(inputDescription).\(voiceTriggerNote)"
             @unknown default:
-                return "Ready on \(inputDescription)"
+                return "Ready on \(inputDescription).\(voiceTriggerNote)"
             }
         }
 
@@ -427,6 +422,10 @@ final class AppModel: ObservableObject {
         Self.resolvedMicrophoneDeviceID(from: selectedMicrophoneID)
     }
 
+    private var shouldUseRecorderMicrophoneFeedForVoiceCommands: Bool {
+        isRecording && includeMicrophone && !microphoneCaptureSuppressed
+    }
+
     private var currentSettings: RecorderSettings {
         let resolvedResolutionPreset = resolvedCaptureResolutionPreset(for: captureResolutionPreset)
         return RecorderSettings(
@@ -490,6 +489,7 @@ final class AppModel: ObservableObject {
             }
         }
         voiceCommandManager.setPreferredMicrophoneDeviceID(resolvedSelectedMicrophoneDeviceID)
+        refreshVoiceCommandListenerState()
         recorder.update(settings: currentSettings)
     }
 
@@ -620,13 +620,13 @@ final class AppModel: ObservableObject {
         notificationObservers = [
             center.addObserver(forName: NSApplication.didFinishLaunchingNotification, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in
-                    self?.voiceCommandManager.start()
+                    self?.refreshVoiceCommandListenerState()
                     self?.scheduleAutomaticRecordingStartIfNeeded(after: 0.75)
                 }
             },
             center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor in
-                    self?.voiceCommandManager.start()
+                    self?.refreshVoiceCommandListenerState()
                     self?.ensureRecordingActive(reason: "Keeping capture live…")
                     self?.retryAutomaticRecordingStartIfNeeded()
                 }
@@ -651,7 +651,7 @@ final class AppModel: ObservableObject {
             }
         ]
 
-        voiceCommandManager.start()
+        refreshVoiceCommandListenerState()
         scheduleAutomaticRecordingStartIfNeeded(after: 0.75)
     }
 
@@ -691,6 +691,7 @@ final class AppModel: ObservableObject {
         case RecorderError.microphonePermissionDenied:
             if includeMicrophone && !microphoneCaptureSuppressed {
                 microphoneCaptureSuppressed = true
+                refreshVoiceCommandListenerState()
                 shouldRetryAutomaticStart = false
                 statusText = "Microphone access was denied, so capture is retrying without microphone audio. Your saved microphone setting stays on."
                 return true
@@ -767,6 +768,7 @@ final class AppModel: ObservableObject {
                     : "Capture is live on \(selectedCaptureDisplaySummary)"
                 log("recorder armed preservingBuffer=\(preservingBuffer) display=\(selectedCaptureDisplaySummary)")
                 isRecording = true
+                refreshVoiceCommandListenerState()
                 shouldRetryImmediately = false
             } catch {
                 shouldRetryImmediately = handleRecordingStartError(error)
@@ -775,6 +777,7 @@ final class AppModel: ObservableObject {
                 }
                 log("recorder start failed message=\(error.localizedDescription)")
                 isRecording = false
+                refreshVoiceCommandListenerState()
             }
             isBusy = false
 
@@ -805,14 +808,11 @@ final class AppModel: ObservableObject {
             capturePoint: recorder.makeCapturePoint(),
             duration: Int(clipDuration),
             sourceApp: captureSourceAppSnapshot(),
-            suppressMicrophoneInExport: shouldSuppressMicrophoneInExportForEchoReduction()
+            suppressMicrophoneInExport: false
         )
 
         let sourceName = request.sourceApp?.name ?? CaptureSourceAppDetector.desktopSourceApp.name
         log("clip queued duration=\(request.duration) source=\(sourceName)")
-        if request.suppressMicrophoneInExport {
-            log("clip queued with communication echo reduction: exporting without microphone track")
-        }
 
         pendingClipRequests.append(request)
         let queuedClipCount = pendingClipRequests.count + (isProcessingClipQueue ? 1 : 0)
@@ -1046,23 +1046,6 @@ final class AppModel: ObservableObject {
 
     private func captureSourceAppSnapshot() -> ClipSourceApp? {
         CaptureSourceAppDetector.captureCurrentSourceApp(bundleIdentifier: Bundle.main.bundleIdentifier)
-    }
-
-    private func shouldSuppressMicrophoneInExportForEchoReduction() -> Bool {
-        guard includeMicrophone, captureSystemAudio else { return false }
-
-        let currentBundleIdentifier = Bundle.main.bundleIdentifier
-        return NSWorkspace.shared.runningApplications.contains { application in
-            guard !application.isTerminated else { return false }
-            guard application.bundleIdentifier != currentBundleIdentifier else { return false }
-
-            let normalizedName = application.localizedName?.lowercased() ?? ""
-            let normalizedBundleIdentifier = application.bundleIdentifier?.lowercased() ?? ""
-
-            return Self.knownCommunicationKeywords.contains { keyword in
-                normalizedName.contains(keyword) || normalizedBundleIdentifier.contains(keyword)
-            }
-        }
     }
 
     private static func defaultCaptureDisplayID() -> String {
@@ -1351,6 +1334,7 @@ final class AppModel: ObservableObject {
         isProcessingClipQueue = false
         isRecoveringRecorder = true
         shouldRetryAutomaticStart = true
+        refreshVoiceCommandListenerState()
         statusText = "Capture interrupted. Reconnecting desktop capture…"
         log("unexpected recorder stop message=\(error.localizedDescription)")
 
@@ -1887,6 +1871,7 @@ final class AppModel: ObservableObject {
     private func refreshMicrophoneCaptureSuppression() {
         guard includeMicrophone else {
             microphoneCaptureSuppressed = false
+            refreshVoiceCommandListenerState()
             return
         }
 
@@ -1896,6 +1881,14 @@ final class AppModel: ObservableObject {
         if authorizationStatus == .authorized {
             microphoneCaptureSuppressed = false
         }
+
+        refreshVoiceCommandListenerState()
+    }
+
+    private func refreshVoiceCommandListenerState() {
+        voiceCommandManager.setPreferredMicrophoneDeviceID(resolvedSelectedMicrophoneDeviceID)
+        voiceCommandManager.setUsesExternalMicrophoneFeed(shouldUseRecorderMicrophoneFeedForVoiceCommands)
+        voiceCommandManager.start()
     }
 
     private func currentPersistedSettings() -> PersistedAppSettings {

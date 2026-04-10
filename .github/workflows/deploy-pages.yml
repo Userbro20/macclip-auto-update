@@ -8,4 +8,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Explain removal
-        run: echo "Bundled website frontend was removed from this repo."
+        run: |
+          echo "Bundled website frontend was removed from this repo."
