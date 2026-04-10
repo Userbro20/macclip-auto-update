@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+        <channel>
+                <title>MacClipper Updates</title>
+                <link>https://github.com/Userbro20/macclip-auto-update/releases</link>
+                <description>Sparkle appcast for MacClipper releases.</description>
+                <language>en</language>
+                <item>
+                        <title>Version 1.2</title>
+                        <link>https://github.com/Userbro20/macclip-auto-update/releases</link>
+                        <sparkle:version>3</sparkle:version>
+                        <sparkle:shortVersionString>1.2</sparkle:shortVersionString>
+                        <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+                        <pubDate>Thu, 09 Apr 2026 20:56:05 +0000</pubDate>
+                        <description><![CDATA[<p>Sparkle migration build for MacClipper.</p>]]></description>
+                        <enclosure url="https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2/MacClipper.zip" sparkle:edSignature="8HTiuZQ6fkSGiz9KDmf/g8PmjzaUGDDP5FOU+jj1QnXV4kuCstaXfdwaQeXxDrv0RueGMf06CQ2A3PMdl+B3DQ==" length="2513737" type="application/octet-stream" />
+                </item>
+        </channel>
+</rss>

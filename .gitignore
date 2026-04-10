@@ -1,0 +1,9 @@
+.DS_Store
+.build/
+.venv/
+.vscode/
+dist/
+node_modules/
+backend/runtime/
+backend/config.env
+backend/.config.env.password

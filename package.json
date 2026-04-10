@@ -1,0 +1,17 @@
+{
+  "name": "macclipper-web",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "web:init": "node backend/server.js --init-only",
+    "web:bot-secret": "node backend/server.js --print-bot-secret",
+    "web:dev": "node backend/server.js",
+    "web:start": "node backend/server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.2"
+  }
+}

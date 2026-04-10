@@ -1,0 +1,8 @@
+{
+  "version": "1.2",
+  "build": 3,
+  "downloadURL": "https://github.com/your-user/your-update-repo/releases/download/v1.2/MacClipper.zip",
+  "sha256": "REPLACE_WITH_RELEASE_ASSET_SHA256",
+  "notes": "Legacy migration feed for pre-Sparkle MacClipper builds.",
+  "publishedAt": "2026-04-09T20:56:05Z"
+}

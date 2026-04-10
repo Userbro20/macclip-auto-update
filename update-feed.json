@@ -1,0 +1,8 @@
+{
+  "version": "1.2",
+  "build": 3,
+  "downloadURL": "https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2/MacClipper.zip",
+  "sha256": "c7de960ca5d1d29e725a350cabf8629cda76ce97d6ec5e0677d92ed9124eda46",
+  "notes": "Sparkle migration build for MacClipper.",
+  "publishedAt": "2026-04-09T20:56:05Z"
+}

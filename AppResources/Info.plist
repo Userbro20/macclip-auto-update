@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDisplayName</key>
+    <string>MacClipper</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleExecutable</key>
+    <string>MacClipper</string>
+    <key>CFBundleIdentifier</key>
+    <string>local.macclipper.app</string>
+    <key>DiscordRichPresenceButton1Label</key>
+    <string>Download MacClipper</string>
+    <key>DiscordRichPresenceButton1URL</key>
+    <string>https://github.com/Userbro20/macclip-auto-update/releases</string>
+    <key>DiscordRichPresenceButton2Label</key>
+    <string>View Updates</string>
+    <key>DiscordRichPresenceButton2URL</key>
+    <string>https://github.com/Userbro20/macclip-auto-update</string>
+    <key>DiscordRichPresenceClientID</key>
+    <string>1491464560073510942</string>
+    <key>DiscordRichPresenceLargeImageKey</key>
+    <string>macclipper</string>
+    <key>DiscordRichPresenceLargeImageText</key>
+    <string>MacClipper</string>
+    <key>CFBundleName</key>
+    <string>MacClipper</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>CFBundleURLName</key>
+            <string>local.macclipper.app</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>macclipper</string>
+            </array>
+        </dict>
+    </array>
+    <key>CFBundleShortVersionString</key>
+    <string>1.2</string>
+    <key>CFBundleVersion</key>
+    <string>3</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>15.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>MacClipperAccountPortalURL</key>
+    <string>http://127.0.0.1:4173/buy-4k.html</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>MacClipper uses your microphone so replay clips can include your voice chat.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>MacClipper listens for the phrase "Mac clip that" so you can save a clip hands-free.</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUFeedURL</key>
+    <string>https://raw.githubusercontent.com/Userbro20/macclip-auto-update/main/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>+2eUnoylksiUd5n+TksRLpGYZCUgUJcPa1y+g0p1UIw=</string>
+    <key>SUScheduledCheckInterval</key>
+    <integer>43200</integer>
+    <key>SUVerifyUpdateBeforeExtraction</key>
+    <true/>
+</dict>
+</plist>
