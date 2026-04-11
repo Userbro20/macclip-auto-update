@@ -1,8 +1,8 @@
 {
-  "version": "1.2.1",
-  "build": 4,
-  "downloadURL": "https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.1/MacClipper.zip",
-  "sha256": "bad8589f9ef45a92f1144343f6d9c1dade26750103250c7c1d852a6faf348f0c",
-  "notes": "Microphone capture, voice trigger, and updater fixes.",
-  "publishedAt": "2026-04-10T18:40:31Z"
+  "version": "1.2.2",
+  "build": 5,
+  "downloadURL": "https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.2/MacClipper.zip",
+  "sha256": "e4b4c8b6afb804add17379ad652e5ef11cffabbdf8a29e45e997aa3740bbb522",
+  "notes": "App identity registration and entitlement lookup fixes for standalone installs, microphone level controls, and updater stability improvements.",
+  "publishedAt": "2026-04-11T01:55:01Z"
 }

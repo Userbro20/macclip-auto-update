@@ -89,6 +89,7 @@ struct RecorderSettings {
     var preferredMicrophoneDeviceID: String?
     var captureSystemAudio: Bool
     var systemAudioLevel: Double
+    var microphoneAudioLevel: Double
     var showCursor: Bool
     var preferredDisplayID: UInt32?
     var resolutionPreset: CaptureResolutionPreset
@@ -218,7 +219,8 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
         includeMicrophone: true,
         preferredMicrophoneDeviceID: nil,
         captureSystemAudio: true,
-        systemAudioLevel: 0.75,
+        systemAudioLevel: 0.60,
+        microphoneAudioLevel: 1.0,
         showCursor: true,
         preferredDisplayID: nil,
         resolutionPreset: .automatic,
@@ -432,7 +434,8 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
             saveDirectory: settings.saveDirectory,
             captureSystemAudio: settings.captureSystemAudio,
             includeMicrophoneInExport: settings.includeMicrophone && !suppressMicrophoneInExport,
-            systemAudioLevel: settings.systemAudioLevel
+            systemAudioLevel: settings.systemAudioLevel,
+            microphoneAudioLevel: settings.microphoneAudioLevel
         )
         log("saveReplayClip completed output=\(outputURL.lastPathComponent)")
         return outputURL
@@ -865,7 +868,8 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
         saveDirectory: URL,
         captureSystemAudio: Bool,
         includeMicrophoneInExport: Bool,
-        systemAudioLevel: Double
+        systemAudioLevel: Double,
+        microphoneAudioLevel: Double
     ) async throws -> URL {
         let composition = AVMutableComposition()
         guard let videoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
@@ -966,7 +970,11 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
             exporter.shouldOptimizeForNetworkUse = true
             exporter.outputURL = outputURL
             exporter.outputFileType = .mov
-            exporter.audioMix = Self.makeAudioMix(for: audioTrackEntries, systemAudioLevel: systemAudioLevel)
+            exporter.audioMix = Self.makeAudioMix(
+                for: audioTrackEntries,
+                systemAudioLevel: systemAudioLevel,
+                microphoneAudioLevel: microphoneAudioLevel
+            )
 
             if applyWatermark {
                 exporter.videoComposition = makeWatermarkVideoComposition(for: composition, exportedAt: exportedAt, videoQuality: videoQuality)
@@ -1062,16 +1070,32 @@ final class ReplayBufferRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @u
         return inferredAudioTrackRole(for: track)
     }
 
-    private static func makeAudioMix(for audioTrackEntries: [AudioTrackEntry], systemAudioLevel: Double) -> AVAudioMix? {
+    private static func makeAudioMix(
+        for audioTrackEntries: [AudioTrackEntry],
+        systemAudioLevel: Double,
+        microphoneAudioLevel: Double
+    ) -> AVAudioMix? {
         let normalizedSystemAudioLevel = Float(min(1.0, max(0.0, systemAudioLevel)))
-        guard audioTrackEntries.contains(where: { $0.slot.role == .system }), abs(normalizedSystemAudioLevel - 1.0) > 0.001 else {
+        let normalizedMicrophoneAudioLevel = Float(min(2.0, max(0.0, microphoneAudioLevel)))
+        let needsSystemMix = audioTrackEntries.contains(where: { $0.slot.role == .system }) && abs(normalizedSystemAudioLevel - 1.0) > 0.001
+        let needsMicrophoneMix = audioTrackEntries.contains(where: { $0.slot.role == .microphone }) && abs(normalizedMicrophoneAudioLevel - 1.0) > 0.001
+
+        guard needsSystemMix || needsMicrophoneMix else {
             return nil
         }
 
         let audioMix = AVMutableAudioMix()
         audioMix.inputParameters = audioTrackEntries.map { entry in
             let parameters = AVMutableAudioMixInputParameters(track: entry.track)
-            let volume: Float = entry.slot.role == .system ? normalizedSystemAudioLevel : 1.0
+            let volume: Float
+            switch entry.slot.role {
+            case .system:
+                volume = normalizedSystemAudioLevel
+            case .microphone:
+                volume = normalizedMicrophoneAudioLevel
+            case .unknown:
+                volume = 1.0
+            }
             parameters.setVolume(volume, at: .zero)
             return parameters
         }

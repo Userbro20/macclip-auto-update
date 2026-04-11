@@ -3,16 +3,29 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="MacClipper"
-BUILD_DIR="$ROOT/.build/release"
-DIST_DIR="$ROOT/dist/$APP_NAME.app"
-EXECUTABLE="$BUILD_DIR/$APP_NAME"
+TARGET_ARCH="${MACCLIPPER_BUILD_ARCH:-$(uname -m)}"
+DIST_DIR="${MACCLIPPER_OUTPUT_APP_PATH:-$ROOT/dist/$APP_NAME.app}"
 BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$ROOT/AppResources/Info.plist")"
 
+case "$TARGET_ARCH" in
+  arm64|x86_64)
+    ;;
+  *)
+    echo "Unsupported MACCLIPPER_BUILD_ARCH '$TARGET_ARCH'. Use arm64 or x86_64." >&2
+    exit 1
+    ;;
+esac
+
 find_sparkle_framework() {
+  local build_dir="$1"
   local candidates=()
 
-  if [[ -d "$ROOT/.build/arm64-apple-macosx/release/Sparkle.framework" ]]; then
-    candidates+=("$ROOT/.build/arm64-apple-macosx/release/Sparkle.framework")
+  if [[ -d "$build_dir/Sparkle.framework" ]]; then
+    candidates+=("$build_dir/Sparkle.framework")
+  fi
+
+  if [[ -d "$ROOT/.build/$TARGET_ARCH-apple-macosx/release/Sparkle.framework" ]]; then
+    candidates+=("$ROOT/.build/$TARGET_ARCH-apple-macosx/release/Sparkle.framework")
   fi
 
   if [[ -d "$ROOT/.build/release/Sparkle.framework" ]]; then
@@ -41,15 +54,31 @@ find_sparkle_framework() {
 
 cd "$ROOT"
 swift "$ROOT/scripts/generate_app_icon.swift"
-swift build -c release
+BUILD_ARGS=(-c release --arch "$TARGET_ARCH")
+BUILD_DIR="$(swift build "${BUILD_ARGS[@]}" --show-bin-path)"
+swift build "${BUILD_ARGS[@]}"
+EXECUTABLE="$BUILD_DIR/$APP_NAME"
 
 rm -rf "$DIST_DIR"
-mkdir -p "$DIST_DIR/Contents/MacOS" "$DIST_DIR/Contents/Resources" "$DIST_DIR/Contents/Frameworks"
+mkdir -p "$DIST_DIR/Contents/MacOS" "$DIST_DIR/Contents/Resources" "$DIST_DIR/Contents/Frameworks" "$DIST_DIR/Contents/Logs"
 cp "$EXECUTABLE" "$DIST_DIR/Contents/MacOS/$APP_NAME"
 cp "$ROOT/AppResources/Info.plist" "$DIST_DIR/Contents/Info.plist"
 cp "$ROOT/AppResources/AppIcon.icns" "$DIST_DIR/Contents/Resources/AppIcon.icns"
 
-SPARKLE_FRAMEWORK="$(find_sparkle_framework)"
+cat > "$DIST_DIR/Contents/Logs/README.txt" <<'EOF'
+MacClipper writes runtime logs into this folder.
+
+Main log:
+capture.log
+
+Legacy log fallback:
+replay-buffer.log
+
+macOS crash reports are still written separately to:
+~/Library/Logs/DiagnosticReports/
+EOF
+
+SPARKLE_FRAMEWORK="$(find_sparkle_framework "$BUILD_DIR")"
 /usr/bin/ditto "$SPARKLE_FRAMEWORK" "$DIST_DIR/Contents/Frameworks/Sparkle.framework"
 
 chmod +x "$DIST_DIR/Contents/MacOS/$APP_NAME"
@@ -61,8 +90,8 @@ fi
 
 if [[ -n "$SIGNING_IDENTITY" ]]; then
   codesign --force --deep --sign "$SIGNING_IDENTITY" "$DIST_DIR"
-  echo "Built and signed $DIST_DIR with $SIGNING_IDENTITY"
+  echo "Built and signed $DIST_DIR for $TARGET_ARCH with $SIGNING_IDENTITY"
 else
   codesign --force --deep --sign - --identifier "$BUNDLE_ID" --requirements "=designated => identifier \"$BUNDLE_ID\"" "$DIST_DIR"
-  echo "Built and ad-hoc signed $DIST_DIR with stable identifier $BUNDLE_ID"
+  echo "Built and ad-hoc signed $DIST_DIR for $TARGET_ARCH with stable identifier $BUNDLE_ID"
 fi

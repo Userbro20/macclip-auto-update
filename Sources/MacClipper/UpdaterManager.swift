@@ -15,7 +15,14 @@ final class UpdaterManager: NSObject, ObservableObject {
             guard automaticallyChecksForUpdates != updater.automaticallyChecksForUpdates else { return }
 
             updater.automaticallyChecksForUpdates = automaticallyChecksForUpdates
-            persistLegacyUpdateCheckPreference()
+            persistUpdatePreferences()
+        }
+    }
+
+    @Published var checksForUpdatesOnLaunch: Bool {
+        didSet {
+            guard checksForUpdatesOnLaunch != oldValue else { return }
+            persistUpdatePreferences()
         }
     }
 
@@ -30,9 +37,11 @@ final class UpdaterManager: NSObject, ObservableObject {
     private var canCheckObservation: NSKeyValueObservation?
     private var automaticChecksObservation: NSKeyValueObservation?
     private var isSynchronizingAutomaticChecks = false
+    private var didScheduleLaunchCheck = false
 
     private static let hostedAppcastURLString = "https://raw.githubusercontent.com/Userbro20/macclip-auto-update/main/appcast.xml"
     private static let legacyAutomaticChecksKey = "automaticallyChecksForUpdates"
+    private static let launchCheckPreferenceKey = "checksForUpdatesOnLaunch"
     private static let sparkleSettingsMigratedKey = "sparkleUpdaterSettingsMigrated"
 
     private lazy var updaterController = SPUStandardUpdaterController(
@@ -45,9 +54,14 @@ final class UpdaterManager: NSObject, ObservableObject {
         updaterController.updater
     }
 
-    init(automaticallyChecksForUpdates initialAutomaticallyChecksForUpdates: Bool? = nil, settingsStore: MachineSettingsStore? = nil) {
+    init(
+        automaticallyChecksForUpdates initialAutomaticallyChecksForUpdates: Bool? = nil,
+        checksForUpdatesOnLaunch initialChecksForUpdatesOnLaunch: Bool? = nil,
+        settingsStore: MachineSettingsStore? = nil
+    ) {
         self.settingsStore = settingsStore
         self.automaticallyChecksForUpdates = initialAutomaticallyChecksForUpdates ?? true
+        self.checksForUpdatesOnLaunch = initialChecksForUpdatesOnLaunch ?? false
 
         let configuredFeedURL = (Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -60,6 +74,7 @@ final class UpdaterManager: NSObject, ObservableObject {
         migrateLegacyAutomaticChecksIfNeeded(using: initialAutomaticallyChecksForUpdates)
         installObservers()
         startUpdater()
+        scheduleLaunchUpdateCheckIfNeeded()
         synchronizeFromUpdater()
     }
 
@@ -81,7 +96,7 @@ final class UpdaterManager: NSObject, ObservableObject {
     }
 
     func savePreferences() {
-        persistLegacyUpdateCheckPreference()
+        persistUpdatePreferences()
     }
 
     func checkForUpdates() {
@@ -127,7 +142,7 @@ final class UpdaterManager: NSObject, ObservableObject {
                 self.isSynchronizingAutomaticChecks = true
                 self.automaticallyChecksForUpdates = newValue
                 self.isSynchronizingAutomaticChecks = false
-                self.persistLegacyUpdateCheckPreference()
+                self.persistUpdatePreferences()
             }
         }
     }
@@ -155,14 +170,25 @@ final class UpdaterManager: NSObject, ObservableObject {
         }
 
         defaults.set(true, forKey: Self.sparkleSettingsMigratedKey)
-        persistLegacyUpdateCheckPreference()
+        persistUpdatePreferences()
     }
 
-    private func persistLegacyUpdateCheckPreference() {
+    private func persistUpdatePreferences() {
         defaults.set(automaticallyChecksForUpdates, forKey: Self.legacyAutomaticChecksKey)
+        defaults.set(checksForUpdatesOnLaunch, forKey: Self.launchCheckPreferenceKey)
         settingsStore?.updateSettings { settings in
             settings.automaticallyChecksForUpdates = automaticallyChecksForUpdates
+            settings.checksForUpdatesOnLaunch = checksForUpdatesOnLaunch
         }
+    }
+
+    private func scheduleLaunchUpdateCheckIfNeeded() {
+        guard checksForUpdatesOnLaunch, !didScheduleLaunchCheck else { return }
+
+        didScheduleLaunchCheck = true
+        availableUpdate = nil
+        statusText = "Checking for updates…"
+        updater.checkForUpdatesInBackground()
     }
 
     private func updateAvailableState(using item: SUAppcastItem) {

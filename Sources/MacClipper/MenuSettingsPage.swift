@@ -38,6 +38,16 @@ struct MenuSettingsPage: View {
         )
     }
 
+    private var microphoneAudioLevelBinding: Binding<Double> {
+        Binding(
+            get: { model.microphoneAudioLevel * 100 },
+            set: {
+                model.microphoneAudioLevel = $0 / 100
+                model.savePreferences()
+            }
+        )
+    }
+
     private var showCursorBinding: Binding<Bool> {
         binding(for: \.showCursor)
     }
@@ -94,6 +104,16 @@ struct MenuSettingsPage: View {
             get: { model.updater.automaticallyChecksForUpdates },
             set: {
                 model.updater.automaticallyChecksForUpdates = $0
+                model.updater.savePreferences()
+            }
+        )
+    }
+
+    private var launchUpdateChecksBinding: Binding<Bool> {
+        Binding(
+            get: { model.updater.checksForUpdatesOnLaunch },
+            set: {
+                model.updater.checksForUpdatesOnLaunch = $0
                 model.updater.savePreferences()
             }
         )
@@ -321,6 +341,27 @@ struct MenuSettingsPage: View {
                     }
 
                     SlateRow(
+                        title: "Microphone Level",
+                        subtitle: model.microphoneAudioLevelSubtitle,
+                        systemImage: "waveform",
+                        isSelected: model.includeMicrophone,
+                        tint: SlateTheme.accent,
+                        density: density
+                    ) {
+                        HStack(spacing: 8) {
+                            Slider(value: microphoneAudioLevelBinding, in: 0...200, step: 5)
+                                .tint(SlateTheme.accent)
+                                .frame(width: 120)
+                                .disabled(!model.includeMicrophone)
+
+                            Text("\(model.microphoneAudioLevelPercent)%")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(model.includeMicrophone ? SlateTheme.textPrimary : SlateTheme.textSecondary)
+                                .frame(width: 38, alignment: .trailing)
+                        }
+                    }
+
+                    SlateRow(
                         title: "Microphone Input",
                         subtitle: model.microphoneSelectionSubtitle,
                         systemImage: "mic",
@@ -438,6 +479,17 @@ struct MenuSettingsPage: View {
                         density: density
                     ) {
                         SlateToggleButton(isOn: automaticUpdatesBinding, onTitle: "Auto", offTitle: "Manual")
+                    }
+
+                    SlateRow(
+                        title: "Update On App Open",
+                        subtitle: model.updater.checksForUpdatesOnLaunch ? "Checks on every launch" : "No launch-time check",
+                        systemImage: "arrow.up.circle.fill",
+                        isSelected: model.updater.checksForUpdatesOnLaunch,
+                        tint: SlateTheme.success,
+                        density: density
+                    ) {
+                        SlateToggleButton(isOn: launchUpdateChecksBinding, onTitle: "On", offTitle: "Off")
                     }
 
                     SlateInsetPanel {

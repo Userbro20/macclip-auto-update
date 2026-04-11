@@ -17,6 +17,15 @@ const ACTIVATION_URL_SCHEME = "macclipper://purchase-complete";
 const ACTIVATION_PEPPER = "macclipper-app-feature-grant-v1";
 const ACCOUNT_STATUS_VALUES = new Set(["active", "banned", "terminated"]);
 const SUBSCRIPTION_TIERS = new Set(["free", "pro"]);
+const BOT_API_CAPABILITIES = Object.freeze([
+  "users.lookup",
+  "users.link-discord",
+  "users.admin",
+  "users.status",
+  "users.subscription",
+  "users.features.grant",
+  "users.features.revoke"
+]);
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -157,14 +166,17 @@ const UPLOAD_DIR = config.UPLOAD_DIR || UPLOAD_DIR_DEFAULT;
 const USERS_FILE = path.join(DATA_DIR, "users.json");
 const SESSIONS_FILE = path.join(DATA_DIR, "sessions.json");
 const VIDEOS_FILE = path.join(DATA_DIR, "videos.json");
+const APP_INSTALLATIONS_FILE = path.join(DATA_DIR, "app-installations.json");
 const COOKIE_NAME = config.COOKIE_NAME || "macclipper.sid";
 const MAX_UPLOAD_MB = Number(config.MAX_UPLOAD_MB || 512);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 ensureDir(DATA_DIR);
 ensureDir(UPLOAD_DIR);
 if (!fileExists(USERS_FILE)) writeJson(USERS_FILE, []);
 if (!fileExists(SESSIONS_FILE)) writeJson(SESSIONS_FILE, []);
 if (!fileExists(VIDEOS_FILE)) writeJson(VIDEOS_FILE, []);
+if (!fileExists(APP_INSTALLATIONS_FILE)) writeJson(APP_INSTALLATIONS_FILE, []);
 
 if (process.argv.includes("--init-only")) {
   console.log(`Locked config ready at ${CONFIG_PATH}`);
@@ -201,6 +213,16 @@ function saveVideos(videos) {
   writeJson(VIDEOS_FILE, videos);
 }
 
+function loadAppInstallations() {
+  return readJson(APP_INSTALLATIONS_FILE, [])
+    .map(normalizeAppInstallationRecord)
+    .filter((installation) => installation.machineIdentifier);
+}
+
+function saveAppInstallations(installations) {
+  writeJson(APP_INSTALLATIONS_FILE, installations.map(normalizeAppInstallationRecord));
+}
+
 function sanitizeText(value, fallback = "") {
   return String(value || "").trim() || fallback;
 }
@@ -223,6 +245,15 @@ function normalizeFeatureKey(value) {
   return sanitizeText(value).toLowerCase();
 }
 
+function normalizeUuid(value, fallback = crypto.randomUUID()) {
+  const normalized = sanitizeText(value).toLowerCase();
+  return UUID_PATTERN.test(normalized) ? normalized : fallback.toLowerCase();
+}
+
+function normalizeMachineIdentifier(value) {
+  return sanitizeText(value).toLowerCase();
+}
+
 function normalizeFeatureKeys(values) {
   const source = Array.isArray(values) ? values : [];
   return Array.from(new Set(source.map(normalizeFeatureKey).filter(Boolean))).sort();
@@ -242,7 +273,7 @@ function normalizeUserRecord(user) {
 
   return {
     id,
-    appUuid: sanitizeText(user.appUuid) || id,
+    appUuid: normalizeUuid(user.appUuid, id),
     displayName: sanitizeText(user.displayName, "Creator"),
     email: sanitizeText(user.email).toLowerCase(),
     passwordHash: sanitizeText(user.passwordHash),
@@ -254,6 +285,39 @@ function normalizeUserRecord(user) {
     paidFeatures,
     discordUserId: sanitizeText(user.discordUserId),
     discordUsername: sanitizeText(user.discordUsername)
+  };
+}
+
+function normalizeAppInstallationRecord(installation) {
+  const createdAt = sanitizeText(installation.createdAt, new Date().toISOString());
+  const updatedAt = sanitizeText(installation.updatedAt, createdAt);
+  const lastSeenAt = sanitizeText(installation.lastSeenAt, updatedAt);
+  const subscriptionTier = normalizeSubscriptionTier(
+    installation.subscriptionTier || (Array.isArray(installation.paidFeatures) && installation.paidFeatures.length ? "pro" : "free")
+  );
+  const paidFeatures = normalizeFeatureKeys([
+    ...defaultPaidFeaturesForTier(subscriptionTier),
+    ...(Array.isArray(installation.paidFeatures) ? installation.paidFeatures : [])
+  ]);
+
+  return {
+    id: sanitizeText(installation.id, crypto.randomUUID()),
+    appUuid: normalizeUuid(installation.appUuid),
+    machineIdentifier: normalizeMachineIdentifier(installation.machineIdentifier),
+    machineName: sanitizeText(installation.machineName, "Mac"),
+    machineModel: sanitizeText(installation.machineModel),
+    systemVersion: sanitizeText(installation.systemVersion),
+    appVersion: sanitizeText(installation.appVersion),
+    buildVersion: sanitizeText(installation.buildVersion),
+    role: normalizeRole(installation.role),
+    accountStatus: normalizeAccountStatus(installation.accountStatus),
+    subscriptionTier,
+    paidFeatures,
+    discordUserId: sanitizeText(installation.discordUserId),
+    discordUsername: sanitizeText(installation.discordUsername),
+    createdAt,
+    updatedAt,
+    lastSeenAt
   };
 }
 
@@ -287,6 +351,80 @@ function publicEntitlementUser(user) {
     paidFeatures: user.paidFeatures,
     updatedAt: user.updatedAt
   };
+}
+
+function publicEntitlementInstallation(installation) {
+  return {
+    id: "",
+    accountStatus: installation.accountStatus,
+    subscriptionTier: installation.subscriptionTier,
+    paidFeatures: installation.paidFeatures,
+    updatedAt: installation.updatedAt
+  };
+}
+
+function linkedUserIdForAppUuid(appUuid) {
+  const normalizedAppUuid = normalizeUuid(appUuid);
+  const matchingUser = loadUsers().find((user) => (user.appUuid || user.id) === normalizedAppUuid);
+  return matchingUser?.id || "";
+}
+
+function publicAppInstallation(installation) {
+  return {
+    id: installation.id,
+    appUuid: installation.appUuid,
+    machineIdentifier: installation.machineIdentifier,
+    machineName: installation.machineName,
+    machineModel: installation.machineModel,
+    systemVersion: installation.systemVersion,
+    appVersion: installation.appVersion,
+    buildVersion: installation.buildVersion,
+    role: installation.role,
+    accountStatus: installation.accountStatus,
+    subscriptionTier: installation.subscriptionTier,
+    paidFeatures: installation.paidFeatures,
+    discordUserId: installation.discordUserId || "",
+    discordUsername: installation.discordUsername || "",
+    websiteUserId: linkedUserIdForAppUuid(installation.appUuid),
+    createdAt: installation.createdAt,
+    updatedAt: installation.updatedAt,
+    lastSeenAt: installation.lastSeenAt
+  };
+}
+
+function publicStandaloneAppUser(installation) {
+  return {
+    id: installation.id,
+    appUuid: installation.appUuid,
+    displayName: installation.machineName || "Mac",
+    email: "Local app install",
+    createdAt: installation.createdAt,
+    updatedAt: installation.updatedAt,
+    role: installation.role,
+    accountStatus: installation.accountStatus,
+    subscriptionTier: installation.subscriptionTier,
+    paidFeatures: installation.paidFeatures,
+    discordUserId: installation.discordUserId || "",
+    discordUsername: installation.discordUsername || "",
+    clipCount: 0,
+    machineIdentifier: installation.machineIdentifier,
+    machineName: installation.machineName,
+    machineModel: installation.machineModel,
+    systemVersion: installation.systemVersion,
+    appVersion: installation.appVersion,
+    buildVersion: installation.buildVersion,
+    standaloneInstallation: true
+  };
+}
+
+function nextAvailableAppUuid(requestedAppUuid, installations, machineIdentifier) {
+  let candidate = normalizeUuid(requestedAppUuid);
+
+  while (installations.some((entry) => entry.machineIdentifier !== machineIdentifier && entry.appUuid === candidate)) {
+    candidate = normalizeUuid(null);
+  }
+
+  return candidate;
 }
 
 function revokeSessionsForUser(userId) {
@@ -324,6 +462,17 @@ function findUserIndex(users, lookup) {
   }
 }
 
+function findAppInstallationIndex(installations, lookup) {
+  switch (lookup.key) {
+    case "appUuid":
+      return installations.findIndex((installation) => installation.appUuid === lookup.value);
+    case "discordUserId":
+      return installations.findIndex((installation) => installation.discordUserId === lookup.value);
+    default:
+      return -1;
+  }
+}
+
 function requireExistingUser(source) {
   const users = loadUsers();
   const lookup = parseUserLookup(source);
@@ -336,6 +485,25 @@ function requireExistingUser(source) {
   return { users, index, user: users[index] };
 }
 
+function requireExistingAccount(source) {
+  const lookup = parseUserLookup(source);
+  const users = loadUsers();
+  const userIndex = findUserIndex(users, lookup);
+
+  if (userIndex !== -1) {
+    return { kind: "user", users, index: userIndex, account: users[userIndex] };
+  }
+
+  const installations = loadAppInstallations();
+  const installationIndex = findAppInstallationIndex(installations, lookup);
+
+  if (installationIndex !== -1) {
+    return { kind: "installation", installations, index: installationIndex, account: installations[installationIndex] };
+  }
+
+  throw new Error("MacClipper user not found.");
+}
+
 function persistUser(users, index, updates) {
   const nextUser = normalizeUserRecord({
     ...users[index],
@@ -345,6 +513,34 @@ function persistUser(users, index, updates) {
   users[index] = nextUser;
   saveUsers(users);
   return nextUser;
+}
+
+function persistAppInstallation(installations, index, updates) {
+  const nextInstallation = normalizeAppInstallationRecord({
+    ...installations[index],
+    ...updates,
+    updatedAt: new Date().toISOString(),
+    lastSeenAt: new Date().toISOString()
+  });
+  installations[index] = nextInstallation;
+  saveAppInstallations(installations);
+  return nextInstallation;
+}
+
+function persistAccount(accountContext, updates) {
+  if (accountContext.kind === "user") {
+    return { kind: "user", account: persistUser(accountContext.users, accountContext.index, updates) };
+  }
+
+  return { kind: "installation", account: persistAppInstallation(accountContext.installations, accountContext.index, updates) };
+}
+
+function publicAccount(accountContext) {
+  if (accountContext.kind === "user") {
+    return publicUser(accountContext.account);
+  }
+
+  return publicStandaloneAppUser(accountContext.account);
 }
 
 function buildActivationToken(userId, feature) {
@@ -484,9 +680,70 @@ app.get("/api/health", (_request, response) => {
   response.json({ ok: true });
 });
 
+app.get("/api/bot/health", (_request, response) => {
+  response.json({
+    ok: true,
+    service: "macclipper-app-bot-api",
+    capabilities: BOT_API_CAPABILITIES,
+  });
+});
+
 app.get("/api/auth/me", (request, response) => {
   const user = getSessionUser(request);
   response.json({ user: user ? publicUser(user) : null });
+});
+
+app.post("/api/app-installations/resolve", (request, response) => {
+  const machineIdentifier = normalizeMachineIdentifier(request.body.machineIdentifier);
+  if (!machineIdentifier) {
+    response.status(400).json({ error: "machineIdentifier is required." });
+    return;
+  }
+
+  const machineName = sanitizeText(request.body.machineName, "Mac");
+  const machineModel = sanitizeText(request.body.machineModel);
+  const systemVersion = sanitizeText(request.body.systemVersion);
+  const appVersion = sanitizeText(request.body.appVersion);
+  const buildVersion = sanitizeText(request.body.buildVersion);
+  const installations = loadAppInstallations();
+  const index = installations.findIndex((entry) => entry.machineIdentifier === machineIdentifier);
+  const timestamp = new Date().toISOString();
+
+  if (index !== -1) {
+    const nextInstallation = normalizeAppInstallationRecord({
+      ...installations[index],
+      machineName,
+      machineModel,
+      systemVersion,
+      appVersion,
+      buildVersion,
+      updatedAt: timestamp,
+      lastSeenAt: timestamp
+    });
+    installations[index] = nextInstallation;
+    saveAppInstallations(installations);
+    response.json({ installation: publicAppInstallation(nextInstallation) });
+    return;
+  }
+
+  const appUuid = nextAvailableAppUuid(request.body.appUuid, installations, machineIdentifier);
+  const installation = normalizeAppInstallationRecord({
+    id: crypto.randomUUID(),
+    appUuid,
+    machineIdentifier,
+    machineName,
+    machineModel,
+    systemVersion,
+    appVersion,
+    buildVersion,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    lastSeenAt: timestamp
+  });
+
+  installations.push(installation);
+  saveAppInstallations(installations);
+  response.status(201).json({ installation: publicAppInstallation(installation) });
 });
 
 app.post("/api/auth/signup", (request, response) => {
@@ -617,13 +874,30 @@ app.get("/api/entitlements/by-user-id", (request, response) => {
     return;
   }
 
-  const user = loadUsers().find((entry) => hasUserId ? entry.id === userId : (entry.appUuid || entry.id) === appUuid);
-  if (!user) {
+  if (hasUserId) {
+    const user = loadUsers().find((entry) => entry.id === userId);
+    if (!user) {
+      response.status(404).json({ error: "MacClipper user not found." });
+      return;
+    }
+
+    response.json({ user: publicEntitlementUser(user) });
+    return;
+  }
+
+  const user = loadUsers().find((entry) => (entry.appUuid || entry.id) === appUuid);
+  if (user) {
+    response.json({ user: publicEntitlementUser(user) });
+    return;
+  }
+
+  const installation = loadAppInstallations().find((entry) => entry.appUuid === appUuid);
+  if (!installation) {
     response.status(404).json({ error: "MacClipper user not found." });
     return;
   }
 
-  response.json({ user: publicEntitlementUser(user) });
+  response.json({ user: publicEntitlementInstallation(installation) });
 });
 
 app.get("/api/entitlements/activation-link", requireAuth, (request, response) => {
@@ -666,8 +940,8 @@ app.post("/api/purchases/4k-pro/complete", requireAuth, (request, response) => {
 
 app.get("/api/bot/users/lookup", requireBotAuth, (request, response) => {
   try {
-    const { user } = requireExistingUser(request.query);
-    response.json({ user: publicUser(user) });
+    const account = requireExistingAccount(request.query);
+    response.json({ user: publicAccount(account) });
   } catch (error) {
     response.status(error.message === "MacClipper user not found." ? 404 : 400).json({ error: error.message });
   }
@@ -682,12 +956,12 @@ app.post("/api/bot/users/link-discord", requireBotAuth, (request, response) => {
   }
 
   try {
-    const { users, index } = requireExistingUser(request.body);
-    const nextUser = persistUser(users, index, {
+    const account = requireExistingAccount(request.body);
+    const nextAccount = persistAccount(account, {
       discordUserId,
       discordUsername
     });
-    response.json({ user: publicUser(nextUser) });
+    response.json({ user: publicAccount(nextAccount) });
   } catch (error) {
     response.status(error.message === "MacClipper user not found." ? 404 : 400).json({ error: error.message });
   }
@@ -697,11 +971,11 @@ app.post("/api/bot/users/admin", requireBotAuth, (request, response) => {
   const enabled = Boolean(request.body.enabled);
 
   try {
-    const { users, index } = requireExistingUser(request.body);
-    const nextUser = persistUser(users, index, {
+    const account = requireExistingAccount(request.body);
+    const nextAccount = persistAccount(account, {
       role: enabled ? "admin" : "user"
     });
-    response.json({ user: publicUser(nextUser) });
+    response.json({ user: publicAccount(nextAccount) });
   } catch (error) {
     response.status(error.message === "MacClipper user not found." ? 404 : 400).json({ error: error.message });
   }
@@ -711,7 +985,8 @@ app.post("/api/bot/users/status", requireBotAuth, (request, response) => {
   const accountStatus = normalizeAccountStatus(request.body.status);
 
   try {
-    const { users, index } = requireExistingUser(request.body);
+    const account = requireExistingAccount(request.body);
+    const currentAccount = account.account;
     const updates = { accountStatus };
 
     if (accountStatus === "terminated") {
@@ -720,12 +995,12 @@ app.post("/api/bot/users/status", requireBotAuth, (request, response) => {
       updates.paidFeatures = [];
     }
 
-    const nextUser = persistUser(users, index, updates);
-    if (accountStatus !== "active") {
-      revokeSessionsForUser(nextUser.id);
+    const nextAccount = persistAccount(account, updates);
+    if (account.kind === "user" && accountStatus !== "active") {
+      revokeSessionsForUser(currentAccount.id);
     }
 
-    response.json({ user: publicUser(nextUser) });
+    response.json({ user: publicAccount(nextAccount) });
   } catch (error) {
     response.status(error.message === "MacClipper user not found." ? 404 : 400).json({ error: error.message });
   }
@@ -742,12 +1017,12 @@ app.post("/api/bot/users/subscription", requireBotAuth, (request, response) => {
   ]);
 
   try {
-    const { users, index } = requireExistingUser(request.body);
-    const nextUser = persistUser(users, index, {
+    const account = requireExistingAccount(request.body);
+    const nextAccount = persistAccount(account, {
       subscriptionTier,
       paidFeatures
     });
-    response.json({ user: publicUser(nextUser) });
+    response.json({ user: publicAccount(nextAccount) });
   } catch (error) {
     response.status(error.message === "MacClipper user not found." ? 404 : 400).json({ error: error.message });
   }
@@ -761,15 +1036,40 @@ app.post("/api/bot/users/features/grant", requireBotAuth, (request, response) =>
   }
 
   try {
-    const { users, index } = requireExistingUser(request.body);
-    const nextUser = persistUser(users, index, {
-      subscriptionTier: feature === "4k-pro" ? "pro" : users[index].subscriptionTier,
-      paidFeatures: normalizeFeatureKeys([feature, ...users[index].paidFeatures])
+    const account = requireExistingAccount(request.body);
+    const currentAccount = account.account;
+    const nextAccount = persistAccount(account, {
+      subscriptionTier: feature === "4k-pro" ? "pro" : currentAccount.subscriptionTier,
+      paidFeatures: normalizeFeatureKeys([feature, ...currentAccount.paidFeatures])
     });
-    response.json({
-      user: publicUser(nextUser),
-      activationURL: buildActivationURL(nextUser.id, feature)
+
+    const responsePayload = { user: publicAccount(nextAccount) };
+    if (nextAccount.kind === "user") {
+      responsePayload.activationURL = buildActivationURL(nextAccount.account.id, feature);
+    }
+
+    response.json(responsePayload);
+  } catch (error) {
+    response.status(error.message === "MacClipper user not found." ? 404 : 400).json({ error: error.message });
+  }
+});
+
+app.post("/api/bot/users/features/revoke", requireBotAuth, (request, response) => {
+  const feature = normalizeFeatureKey(request.body.feature);
+  if (!feature) {
+    response.status(400).json({ error: "feature is required." });
+    return;
+  }
+
+  try {
+    const account = requireExistingAccount(request.body);
+    const currentAccount = account.account;
+    const remainingFeatures = normalizeFeatureKeys(currentAccount.paidFeatures.filter((entry) => entry !== feature));
+    const nextAccount = persistAccount(account, {
+      subscriptionTier: feature === "4k-pro" && remainingFeatures.length === 0 ? "free" : currentAccount.subscriptionTier,
+      paidFeatures: remainingFeatures
     });
+    response.json({ user: publicAccount(nextAccount) });
   } catch (error) {
     response.status(error.message === "MacClipper user not found." ? 404 : 400).json({ error: error.message });
   }

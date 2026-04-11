@@ -7,6 +7,7 @@ struct PersistedAppSettings: Codable {
     var selectedMicrophoneID: String?
     var captureSystemAudio: Bool
     var systemAudioLevel: Double?
+    var microphoneAudioLevel: Double?
     var showCursor: Bool
     var enableGameNotifications: Bool
     var captureResolutionPreset: CaptureResolutionPreset
@@ -23,6 +24,7 @@ struct PersistedAppSettings: Codable {
     var selectedCaptureDisplayID: String
     var discordWebhookURLString: String
     var automaticallyChecksForUpdates: Bool
+    var checksForUpdatesOnLaunch: Bool?
     var captureDeviceProfiles: [String: CaptureDeviceSettingsProfile]
 }
 
@@ -67,7 +69,7 @@ final class MachineSettingsStore {
 
             let envelope = PersistedAppSettingsEnvelope(
                 schemaVersion: Self.schemaVersion,
-                machineIdentifier: nil,
+                machineIdentifier: MachineIdentityProvider.current()?.identifier,
                 savedAt: Date(),
                 settings: settings
             )

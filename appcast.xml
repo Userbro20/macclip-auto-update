@@ -6,14 +6,14 @@
                 <description>Sparkle appcast for MacClipper releases.</description>
                 <language>en</language>
                 <item>
-                        <title>Version 1.2.1</title>
+                        <title>Version 1.2.2</title>
                         <link>https://github.com/Userbro20/macclip-auto-update/releases</link>
-                        <sparkle:version>4</sparkle:version>
-                        <sparkle:shortVersionString>1.2.1</sparkle:shortVersionString>
+                        <sparkle:version>5</sparkle:version>
+                        <sparkle:shortVersionString>1.2.2</sparkle:shortVersionString>
                         <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-                        <pubDate>Fri, 10 Apr 2026 18:40:31 +0000</pubDate>
-                        <description><![CDATA[<p>Microphone capture, voice trigger, and updater fixes.</p>]]></description>
-                        <enclosure url="https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.1/MacClipper.zip" sparkle:edSignature="PceKstqOYygpM4dD16YxT6ZNiO7OOjf5AXMek3XUfzgoSyw9LECJc36rZMznelSKeJlKnDtMWc9d5EgCu+YsDg==" length="2516090" type="application/octet-stream" />
+                        <pubDate>Sat, 11 Apr 2026 01:55:01 +0000</pubDate>
+                        <description><![CDATA[<p>App identity registration and entitlement lookup fixes for standalone installs, microphone level controls, and updater stability improvements.</p>]]></description>
+                        <enclosure url="https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.2/MacClipper.zip" sparkle:edSignature="qUpzh2kY7sSWqITllur/wibyCenChwTuS+MdETglVq00+vvsYzDFTu2Am/p6lTWu72LfYrYM0fqTv4lL3WAbAQ==" length="2550168" type="application/octet-stream" />
                 </item>
         </channel>
 </rss>

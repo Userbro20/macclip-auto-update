@@ -25,7 +25,7 @@ enum AppIntegrityMonitor {
         let process = Process()
         let outputPipe = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-        process.arguments = ["--verify", "--deep", "--strict", bundleURL.path]
+        process.arguments = ["--verify", "--deep", "--strict", "--ignore-resources", bundleURL.path]
         process.standardOutput = outputPipe
         process.standardError = outputPipe
 

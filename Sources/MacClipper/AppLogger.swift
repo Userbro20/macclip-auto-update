@@ -12,8 +12,7 @@ final class AppLogger: @unchecked Sendable {
     private let fileManager = FileManager.default
 
     private init() {
-        logDirectoryURL = fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/MacClipper", isDirectory: true)
+        logDirectoryURL = Self.resolveLogDirectoryURL(fileManager: fileManager)
         logFileURL = logDirectoryURL.appendingPathComponent("capture.log", isDirectory: false)
         legacyLogFileURL = logDirectoryURL.appendingPathComponent("replay-buffer.log", isDirectory: false)
         formatter.formatOptions = [.withInternetDateTime]
@@ -71,6 +70,20 @@ final class AppLogger: @unchecked Sendable {
     }
 
     private func ensureLogDirectoryExists() {
+        guard !fileManager.fileExists(atPath: logDirectoryURL.path) else { return }
         try? fileManager.createDirectory(at: logDirectoryURL, withIntermediateDirectories: true)
+    }
+
+    private static func resolveLogDirectoryURL(fileManager: FileManager) -> URL {
+        let bundleURL = Bundle.main.bundleURL.standardizedFileURL
+        if bundleURL.pathExtension.lowercased() == "app" {
+            let bundledLogsURL = bundleURL.appendingPathComponent("Contents/Logs", isDirectory: true)
+            if fileManager.fileExists(atPath: bundledLogsURL.path) {
+                return bundledLogsURL
+            }
+        }
+
+        return fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/MacClipper", isDirectory: true)
     }
 }

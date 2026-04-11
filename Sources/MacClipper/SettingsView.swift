@@ -43,6 +43,16 @@ struct SettingsView: View {
         )
     }
 
+    private var microphoneAudioLevelBinding: Binding<Double> {
+        Binding(
+            get: { model.microphoneAudioLevel * 100 },
+            set: {
+                model.microphoneAudioLevel = $0 / 100
+                model.savePreferences()
+            }
+        )
+    }
+
     private var showCursorBinding: Binding<Bool> {
         binding(for: \.showCursor)
     }
@@ -89,6 +99,16 @@ struct SettingsView: View {
             get: { model.updater.automaticallyChecksForUpdates },
             set: {
                 model.updater.automaticallyChecksForUpdates = $0
+                model.updater.savePreferences()
+            }
+        )
+    }
+
+    private var launchUpdateChecksBinding: Binding<Bool> {
+        Binding(
+            get: { model.updater.checksForUpdatesOnLaunch },
+            set: {
+                model.updater.checksForUpdatesOnLaunch = $0
                 model.updater.savePreferences()
             }
         )
@@ -315,6 +335,26 @@ struct SettingsView: View {
                         }
 
                         SlateRow(
+                            title: "Microphone Level",
+                            subtitle: model.microphoneAudioLevelSubtitle,
+                            systemImage: "waveform",
+                            isSelected: model.includeMicrophone,
+                            tint: SlateTheme.accent
+                        ) {
+                            HStack(spacing: 12) {
+                                Slider(value: microphoneAudioLevelBinding, in: 0...200, step: 5)
+                                    .tint(SlateTheme.accent)
+                                    .frame(width: 220)
+                                    .disabled(!model.includeMicrophone)
+
+                                Text("\(model.microphoneAudioLevelPercent)%")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(model.includeMicrophone ? SlateTheme.textPrimary : SlateTheme.textSecondary)
+                                    .frame(width: 48, alignment: .trailing)
+                            }
+                        }
+
+                        SlateRow(
                             title: "Microphone Input",
                             subtitle: model.microphoneSelectionSubtitle,
                             systemImage: "mic",
@@ -443,6 +483,16 @@ struct SettingsView: View {
                             tint: SlateTheme.success
                         ) {
                             SlateToggleButton(isOn: automaticUpdatesBinding, onTitle: "Auto", offTitle: "Manual")
+                        }
+
+                        SlateRow(
+                            title: "Update On App Open",
+                            subtitle: model.updater.checksForUpdatesOnLaunch ? "MacClipper runs a background update check every time the app opens." : "App launch will not trigger an update check.",
+                            systemImage: "arrow.up.circle.fill",
+                            isSelected: model.updater.checksForUpdatesOnLaunch,
+                            tint: SlateTheme.success
+                        ) {
+                            SlateToggleButton(isOn: launchUpdateChecksBinding, onTitle: "On", offTitle: "Off")
                         }
 
                         AdvancedSettingsSection(model: model, isExpanded: $showAdvancedSettings)

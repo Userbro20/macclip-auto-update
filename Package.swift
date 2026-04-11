@@ -24,6 +24,7 @@ let package = Package(
                 .linkedFramework("ScreenCaptureKit"),
                 .linkedFramework("Speech"),
                 .linkedFramework("AppKit"),
+                .linkedFramework("IOKit"),
                 .linkedFramework("Carbon"),
                 .unsafeFlags([
                     "-Xlinker",

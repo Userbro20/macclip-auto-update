@@ -53,15 +53,20 @@ npm run web:bot-secret
 
 The bot contract now includes:
 
+- `GET /api/bot/health`
 - `GET /api/bot/users/lookup`
 - `POST /api/bot/users/link-discord`
 - `POST /api/bot/users/admin`
 - `POST /api/bot/users/status`
 - `POST /api/bot/users/subscription`
 - `POST /api/bot/users/features/grant`
+- `POST /api/bot/users/features/revoke`
+- `POST /api/app-installations/resolve`
 - `GET /api/entitlements/by-user-id`
 
 `/api/bot/users/features/grant` returns a `macclipper://purchase-complete?...` activation URL, and linked apps can also pick the same feature up live from `/api/entitlements/by-user-id`.
+
+`/api/app-installations/resolve` saves each Mac's hashed machine identity plus metadata on first launch, returns a canonical `appUuid`, and reuses that same `appUuid` on reinstalls of the app on the same Mac.
 
 This repo no longer ships a bundled website frontend. The separate website running elsewhere on your machine is the one meant for the account and purchase UI.
 
@@ -72,11 +77,33 @@ cd /Users/meteorite/macclipper
 open dist/MacClipper.app
 ```
 
+To package a specific architecture explicitly:
+
+```bash
+cd /Users/meteorite/macclipper
+MACCLIPPER_BUILD_ARCH=arm64 ./scripts/package_app.sh
+MACCLIPPER_BUILD_ARCH=x86_64 ./scripts/package_app.sh
+```
+
 ## Build a drag-and-drop `.dmg`
 ```bash
 cd /Users/meteorite/macclipper
 ./scripts/build_dmg.sh
 open dist/MacClipper.dmg
+```
+
+By default this now produces separate architecture DMGs:
+
+```text
+dist/MacClipper-apple-silicon.dmg
+dist/MacClipper-intel.dmg
+```
+
+`dist/MacClipper.dmg` is kept as a copy of the native-architecture build for convenience. To build only one DMG architecture, set `MACCLIPPER_DMG_ARCHS`, for example:
+
+```bash
+MACCLIPPER_DMG_ARCHS="arm64" ./scripts/build_dmg.sh
+MACCLIPPER_DMG_ARCHS="x86_64" ./scripts/build_dmg.sh
 ```
 
 ## Built-in updater feeds

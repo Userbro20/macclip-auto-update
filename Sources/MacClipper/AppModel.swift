@@ -4,6 +4,30 @@ import AVFoundation
 import SwiftUI
 import UserNotifications
 
+private struct AppInstallationRegistrationPayload: Encodable {
+    let appUuid: String
+    let machineIdentifier: String
+    let machineName: String
+    let machineModel: String
+    let systemVersion: String
+    let appVersion: String
+    let buildVersion: String
+}
+
+private struct AppInstallationRegistrationSnapshot: Decodable {
+    let installation: RegisteredAppInstallation
+}
+
+private struct RegisteredAppInstallation: Decodable {
+    let appUuid: String
+    let websiteUserID: String
+
+    private enum CodingKeys: String, CodingKey {
+        case appUuid
+        case websiteUserID = "websiteUserId"
+    }
+}
+
 struct ClipSourceApp: Codable, Hashable {
     let name: String
     let bundleIdentifier: String?
@@ -128,6 +152,7 @@ struct CaptureDeviceSettingsProfile: Codable {
     let includeMicrophone: Bool
     let captureSystemAudio: Bool
     let systemAudioLevel: Double?
+    let microphoneAudioLevel: Double?
     let showCursor: Bool
     let captureResolutionPreset: CaptureResolutionPreset
     let videoQualityPreset: VideoQualityPreset
@@ -152,6 +177,7 @@ final class AppModel: ObservableObject {
     @Published var selectedMicrophoneID: String
     @Published var captureSystemAudio: Bool
     @Published var systemAudioLevel: Double
+    @Published var microphoneAudioLevel: Double
     @Published var showCursor: Bool
     @Published var enableGameNotifications: Bool
     @Published var captureResolutionPreset: CaptureResolutionPreset
@@ -192,6 +218,7 @@ final class AppModel: ObservableObject {
     private var microphoneCaptureSuppressed = false
     private var automaticRearmTask: Task<Void, Never>?
     private var entitlementSyncTask: Task<Void, Never>?
+    private var appInstallationRegistrationTask: Task<Void, Never>?
 
     init() {
         let defaults = UserDefaults.standard
@@ -209,6 +236,7 @@ final class AppModel: ObservableObject {
         self.settingsStore = settingsStore
         updater = UpdaterManager(
             automaticallyChecksForUpdates: persistedSettings.automaticallyChecksForUpdates,
+            checksForUpdatesOnLaunch: persistedSettings.checksForUpdatesOnLaunch ?? false,
             settingsStore: settingsStore
         )
 
@@ -217,7 +245,11 @@ final class AppModel: ObservableObject {
         includeMicrophone = persistedSettings.includeMicrophone
         selectedMicrophoneID = persistedSettings.selectedMicrophoneID ?? ""
         captureSystemAudio = persistedSettings.captureSystemAudio
-        systemAudioLevel = Self.normalizedSystemAudioLevel(persistedSettings.systemAudioLevel ?? 0.75)
+        systemAudioLevel = Self.resolvedSystemAudioLevel(
+            persistedLevel: persistedSettings.systemAudioLevel,
+            persistedMicrophoneLevel: persistedSettings.microphoneAudioLevel
+        )
+        microphoneAudioLevel = Self.normalizedMicrophoneAudioLevel(persistedSettings.microphoneAudioLevel ?? 1.0)
         showCursor = persistedSettings.showCursor
         enableGameNotifications = persistedSettings.enableGameNotifications
         captureResolutionPreset = persistedSettings.captureResolutionPreset
@@ -264,6 +296,7 @@ final class AppModel: ObservableObject {
         refreshDiagnosticsLog()
         observeApplicationLifecycle()
         handlePendingIncomingFeatureActivationURLs()
+        startAppInstallationRegistration()
         startEntitlementSyncLoop()
         requestNotificationAuthorizationIfNeeded()
     }
@@ -312,6 +345,10 @@ final class AppModel: ObservableObject {
         Int((systemAudioLevel * 100).rounded())
     }
 
+    var microphoneAudioLevelPercent: Int {
+        Int((microphoneAudioLevel * 100).rounded())
+    }
+
     var systemAudioSettingsSubtitle: String {
         captureSystemAudio
             ? "Desktop and app sound will be captured at \(systemAudioLevelPercent)% volume."
@@ -320,8 +357,14 @@ final class AppModel: ObservableObject {
 
     var systemAudioLevelSubtitle: String {
         captureSystemAudio
-            ? "Lower this if game or desktop audio is overpowering your clips."
+            ? "Lower this if your tutor, game, or desktop audio is overpowering your voice."
             : "Turn System Audio on to adjust its recorded volume."
+    }
+
+    var microphoneAudioLevelSubtitle: String {
+        includeMicrophone
+            ? "Raise this if your voice is quieter than the people or apps you are recording."
+            : "Turn Microphone on to adjust how loud your voice sounds in saved clips."
     }
 
     var microphoneSelectionSubtitle: String {
@@ -454,6 +497,7 @@ final class AppModel: ObservableObject {
             preferredMicrophoneDeviceID: resolvedSelectedMicrophoneDeviceID,
             captureSystemAudio: captureSystemAudio,
             systemAudioLevel: systemAudioLevel,
+            microphoneAudioLevel: microphoneAudioLevel,
             showCursor: showCursor,
             preferredDisplayID: UInt32(selectedCaptureDisplayID),
             resolutionPreset: resolvedResolutionPreset,
@@ -479,6 +523,7 @@ final class AppModel: ObservableObject {
         captureResolutionPreset = resolvedCaptureResolutionPreset(for: captureResolutionPreset)
         videoQualityPreset = effectiveVideoQualityPreset(for: videoQualityPreset, resolutionPreset: captureResolutionPreset)
         systemAudioLevel = Self.normalizedSystemAudioLevel(systemAudioLevel)
+        microphoneAudioLevel = Self.normalizedMicrophoneAudioLevel(microphoneAudioLevel)
 
         defaults.set(clipDuration, forKey: "clipDuration")
         defaults.set(startReplayBufferOnLaunch, forKey: "startReplayBufferOnLaunch")
@@ -486,6 +531,7 @@ final class AppModel: ObservableObject {
         defaults.set(selectedMicrophoneID, forKey: "selectedMicrophoneID")
         defaults.set(captureSystemAudio, forKey: "captureSystemAudio")
         defaults.set(systemAudioLevel, forKey: "systemAudioLevel")
+        defaults.set(microphoneAudioLevel, forKey: "microphoneAudioLevel")
         defaults.set(showCursor, forKey: "showCursor")
         defaults.set(enableGameNotifications, forKey: "enableGameNotifications")
         defaults.set(captureResolutionPreset.rawValue, forKey: "captureResolutionPreset")
@@ -1242,6 +1288,67 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private func startAppInstallationRegistration() {
+        appInstallationRegistrationTask?.cancel()
+        appInstallationRegistrationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.registerAppInstallationWithAccountServiceIfNeeded()
+            await self.syncEntitlementsFromWebsiteIfNeeded()
+        }
+    }
+
+    private func registerAppInstallationWithAccountServiceIfNeeded() async {
+        guard let serviceBaseURL = Self.accountServiceBaseURL(),
+              let machineIdentity = MachineIdentityProvider.current() else {
+            return
+        }
+
+        let requestURL = serviceBaseURL.appendingPathComponent("api/app-installations/resolve")
+        let payload = AppInstallationRegistrationPayload(
+            appUuid: Self.resolvedAppUUID(appUUID),
+            machineIdentifier: machineIdentity.identifier,
+            machineName: machineIdentity.name,
+            machineModel: machineIdentity.modelIdentifier,
+            systemVersion: machineIdentity.systemVersion,
+            appVersion: Self.appShortVersionString(),
+            buildVersion: Self.appBuildVersionString()
+        )
+
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "POST"
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.timeoutInterval = 5
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        do {
+            request.httpBody = try JSONEncoder().encode(payload)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200 ..< 300).contains(httpResponse.statusCode) else {
+                return
+            }
+
+            let snapshot = try JSONDecoder().decode(AppInstallationRegistrationSnapshot.self, from: data)
+            let resolvedAppUUID = Self.resolvedAppUUID(snapshot.installation.appUuid)
+            let resolvedWebsiteUserID = FeatureActivationManager.normalizedUserID(snapshot.installation.websiteUserID)
+            let didChangeAppUUID = resolvedAppUUID != appUUID
+            let shouldAdoptWebsiteUserID = websiteUserID.isEmpty && !resolvedWebsiteUserID.isEmpty
+
+            guard didChangeAppUUID || shouldAdoptWebsiteUserID else {
+                return
+            }
+
+            appUUID = resolvedAppUUID
+            if shouldAdoptWebsiteUserID {
+                websiteUserID = resolvedWebsiteUserID
+            }
+            savePreferences()
+            log("resolved app identity from account service appUuid=\(resolvedAppUUID)")
+        } catch {
+            log("failed to register app installation with account service: \(error.localizedDescription)")
+        }
+    }
+
     private func syncEntitlementsFromWebsiteIfNeeded() async {
         let normalizedUserID = FeatureActivationManager.normalizedUserID(websiteUserID)
         let resolvedAppUUID = Self.resolvedAppUUID(appUUID)
@@ -1343,6 +1450,16 @@ final class AppModel: ObservableObject {
         components.host = host
         components.port = purchasePortalURL.port
         return components.url
+    }
+
+    private static func appShortVersionString() -> String {
+        ((Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func appBuildVersionString() -> String {
+        ((Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "0")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func handleUnexpectedRecorderStop(_ error: Error) {
@@ -1841,7 +1958,11 @@ final class AppModel: ObservableObject {
         clipDuration = Self.normalizedClipDuration(profile.clipDuration)
         includeMicrophone = profile.includeMicrophone
         captureSystemAudio = profile.captureSystemAudio
-        systemAudioLevel = Self.normalizedSystemAudioLevel(profile.systemAudioLevel ?? 0.75)
+        systemAudioLevel = Self.resolvedSystemAudioLevel(
+            persistedLevel: profile.systemAudioLevel,
+            persistedMicrophoneLevel: profile.microphoneAudioLevel
+        )
+        microphoneAudioLevel = Self.normalizedMicrophoneAudioLevel(profile.microphoneAudioLevel ?? 1.0)
         showCursor = profile.showCursor
         captureResolutionPreset = resolvedCaptureResolutionPreset(for: profile.captureResolutionPreset)
         videoQualityPreset = effectiveVideoQualityPreset(for: profile.videoQualityPreset, resolutionPreset: captureResolutionPreset)
@@ -1855,6 +1976,7 @@ final class AppModel: ObservableObject {
             includeMicrophone: includeMicrophone,
             captureSystemAudio: captureSystemAudio,
             systemAudioLevel: systemAudioLevel,
+            microphoneAudioLevel: microphoneAudioLevel,
             showCursor: showCursor,
             captureResolutionPreset: captureResolutionPreset,
             videoQualityPreset: videoQualityPreset
@@ -1883,6 +2005,28 @@ final class AppModel: ObservableObject {
 
     private static func normalizedSystemAudioLevel(_ level: Double) -> Double {
         min(1.0, max(0.0, (level * 20).rounded() / 20))
+    }
+
+    private static func normalizedMicrophoneAudioLevel(_ level: Double) -> Double {
+        min(2.0, max(0.0, (level * 20).rounded() / 20))
+    }
+
+    private static func resolvedSystemAudioLevel(
+        persistedLevel: Double?,
+        persistedMicrophoneLevel: Double?
+    ) -> Double {
+        let legacyDefaultLevel = 0.75
+        let recommendedLevel = 0.60
+
+        guard let persistedLevel else {
+            return recommendedLevel
+        }
+
+        if persistedMicrophoneLevel == nil, abs(persistedLevel - legacyDefaultLevel) < 0.001 {
+            return recommendedLevel
+        }
+
+        return normalizedSystemAudioLevel(persistedLevel)
     }
 
     private static func logTimestampString(from date: Date) -> String {
@@ -1927,6 +2071,7 @@ final class AppModel: ObservableObject {
             selectedMicrophoneID: selectedMicrophoneID.isEmpty ? nil : selectedMicrophoneID,
             captureSystemAudio: captureSystemAudio,
             systemAudioLevel: systemAudioLevel,
+            microphoneAudioLevel: microphoneAudioLevel,
             showCursor: showCursor,
             enableGameNotifications: enableGameNotifications,
             captureResolutionPreset: captureResolutionPreset,
@@ -1943,6 +2088,7 @@ final class AppModel: ObservableObject {
             selectedCaptureDisplayID: selectedCaptureDisplayID,
             discordWebhookURLString: Self.lockedDiscordWebhookURL,
             automaticallyChecksForUpdates: updater.automaticallyChecksForUpdates,
+            checksForUpdatesOnLaunch: updater.checksForUpdatesOnLaunch,
             captureDeviceProfiles: captureDeviceProfiles
         )
     }
@@ -1968,7 +2114,11 @@ final class AppModel: ObservableObject {
                 includeMicrophone: storedSettings.includeMicrophone,
                 selectedMicrophoneID: storedSettings.selectedMicrophoneID,
                 captureSystemAudio: storedSettings.captureSystemAudio,
-                systemAudioLevel: normalizedSystemAudioLevel(storedSettings.systemAudioLevel ?? 0.75),
+                systemAudioLevel: resolvedSystemAudioLevel(
+                    persistedLevel: storedSettings.systemAudioLevel,
+                    persistedMicrophoneLevel: storedSettings.microphoneAudioLevel
+                ),
+                microphoneAudioLevel: normalizedMicrophoneAudioLevel(storedSettings.microphoneAudioLevel ?? 1.0),
                 showCursor: storedSettings.showCursor,
                 enableGameNotifications: storedSettings.enableGameNotifications,
                 captureResolutionPreset: storedSettings.captureResolutionPreset,
@@ -1985,6 +2135,7 @@ final class AppModel: ObservableObject {
                 selectedCaptureDisplayID: storedSettings.selectedCaptureDisplayID.isEmpty ? defaultCaptureDisplayID() : storedSettings.selectedCaptureDisplayID,
                 discordWebhookURLString: Self.lockedDiscordWebhookURL,
                 automaticallyChecksForUpdates: storedSettings.automaticallyChecksForUpdates,
+                checksForUpdatesOnLaunch: storedSettings.checksForUpdatesOnLaunch ?? false,
                 captureDeviceProfiles: storedSettings.captureDeviceProfiles
             )
         }
@@ -1995,7 +2146,11 @@ final class AppModel: ObservableObject {
             includeMicrophone: defaults.object(forKey: "includeMicrophone") as? Bool ?? false,
             selectedMicrophoneID: defaults.string(forKey: "selectedMicrophoneID"),
             captureSystemAudio: defaults.object(forKey: "captureSystemAudio") as? Bool ?? true,
-            systemAudioLevel: normalizedSystemAudioLevel((defaults.object(forKey: "systemAudioLevel") as? NSNumber)?.doubleValue ?? 0.75),
+            systemAudioLevel: resolvedSystemAudioLevel(
+                persistedLevel: (defaults.object(forKey: "systemAudioLevel") as? NSNumber)?.doubleValue,
+                persistedMicrophoneLevel: (defaults.object(forKey: "microphoneAudioLevel") as? NSNumber)?.doubleValue
+            ),
+            microphoneAudioLevel: normalizedMicrophoneAudioLevel((defaults.object(forKey: "microphoneAudioLevel") as? NSNumber)?.doubleValue ?? 1.0),
             showCursor: defaults.object(forKey: "showCursor") as? Bool ?? true,
             enableGameNotifications: defaults.object(forKey: "enableGameNotifications") as? Bool ?? true,
             captureResolutionPreset: CaptureResolutionPreset(rawValue: defaults.string(forKey: "captureResolutionPreset") ?? "automatic") ?? .automatic,
@@ -2012,6 +2167,7 @@ final class AppModel: ObservableObject {
             selectedCaptureDisplayID: defaults.string(forKey: "selectedCaptureDisplayID") ?? defaultCaptureDisplayID(),
             discordWebhookURLString: Self.lockedDiscordWebhookURL,
             automaticallyChecksForUpdates: defaults.object(forKey: "automaticallyChecksForUpdates") as? Bool ?? true,
+            checksForUpdatesOnLaunch: defaults.object(forKey: "checksForUpdatesOnLaunch") as? Bool ?? false,
             captureDeviceProfiles: loadCaptureDeviceProfiles(from: defaults)
         )
 
