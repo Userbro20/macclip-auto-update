@@ -7,3 +7,8 @@ node_modules/
 backend/runtime/
 backend/config.env
 backend/.config.env.password
+.firebase/
+functions/lib/
+functions/node_modules/
+functions/.env*
+firestore-debug.log

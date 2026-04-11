@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MacClipper Cloud API</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f5f0e7;
+        --ink: #1e2423;
+        --spruce: #29413a;
+        --clay: #b36f4a;
+        --mist: #d9d4c7;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(179, 111, 74, 0.18), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(41, 65, 58, 0.18), transparent 35%),
+          linear-gradient(160deg, #fbf8f2 0%, var(--paper) 52%, #ece4d6 100%);
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      main {
+        width: min(760px, 100%);
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(41, 65, 58, 0.14);
+        border-radius: 28px;
+        padding: 32px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 20px 60px rgba(30, 36, 35, 0.12);
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: clamp(2rem, 6vw, 3.5rem);
+        line-height: 0.95;
+      }
+
+      p {
+        margin: 0 0 16px;
+        font-size: 1.06rem;
+        line-height: 1.6;
+      }
+
+      .pill {
+        display: inline-block;
+        margin-bottom: 18px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 0.84rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        background: var(--mist);
+        color: var(--spruce);
+      }
+
+      code {
+        font-family: "SFMono-Regular", Menlo, monospace;
+        font-size: 0.95em;
+        background: rgba(41, 65, 58, 0.08);
+        padding: 0.15em 0.35em;
+        border-radius: 6px;
+      }
+
+      a {
+        color: var(--spruce);
+      }
+
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 12px;
+        padding: 12px 18px;
+        border-radius: 999px;
+        text-decoration: none;
+        background: var(--spruce);
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="pill">MacClipper Hosting</div>
+      <h1>MacClipper Cloud API</h1>
+      <p>This Firebase Hosting site fronts the MacClipper Functions API. App and bot traffic should use <code>/api</code> on this host.</p>
+      <p>The app purchase portal entry point is <a href="/buy-4k.html">buy-4k.html</a>. The Discord bot health path is <code>/api/bot/health</code>.</p>
+      <a class="cta" href="/buy-4k.html">Open 4K Pro Portal</a>
+    </main>
+  </body>
+</html>

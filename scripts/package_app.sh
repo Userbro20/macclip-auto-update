@@ -6,6 +6,12 @@ APP_NAME="MacClipper"
 TARGET_ARCH="${MACCLIPPER_BUILD_ARCH:-$(uname -m)}"
 DIST_DIR="${MACCLIPPER_OUTPUT_APP_PATH:-$ROOT/dist/$APP_NAME.app}"
 BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$ROOT/AppResources/Info.plist")"
+DEFAULT_ACCOUNT_PORTAL_URL="$(/usr/libexec/PlistBuddy -c 'Print :MacClipperAccountPortalURL' "$ROOT/AppResources/Info.plist" 2>/dev/null || true)"
+ACCOUNT_PORTAL_URL="${MACCLIPPER_ACCOUNT_PORTAL_URL:-}"
+
+if [[ -z "$ACCOUNT_PORTAL_URL" && -n "${MACCLIPPER_API_BASE_URL:-}" ]]; then
+  ACCOUNT_PORTAL_URL="${MACCLIPPER_API_BASE_URL%/}/buy-4k.html"
+fi
 
 case "$TARGET_ARCH" in
   arm64|x86_64)
@@ -64,6 +70,21 @@ mkdir -p "$DIST_DIR/Contents/MacOS" "$DIST_DIR/Contents/Resources" "$DIST_DIR/Co
 cp "$EXECUTABLE" "$DIST_DIR/Contents/MacOS/$APP_NAME"
 cp "$ROOT/AppResources/Info.plist" "$DIST_DIR/Contents/Info.plist"
 cp "$ROOT/AppResources/AppIcon.icns" "$DIST_DIR/Contents/Resources/AppIcon.icns"
+
+if [[ -n "$ACCOUNT_PORTAL_URL" ]]; then
+  /usr/libexec/PlistBuddy -c "Set :MacClipperAccountPortalURL $ACCOUNT_PORTAL_URL" "$DIST_DIR/Contents/Info.plist" >/dev/null 2>&1 || \
+    /usr/libexec/PlistBuddy -c "Add :MacClipperAccountPortalURL string $ACCOUNT_PORTAL_URL" "$DIST_DIR/Contents/Info.plist"
+  echo "Configured MacClipperAccountPortalURL=$ACCOUNT_PORTAL_URL"
+fi
+
+RESOLVED_ACCOUNT_PORTAL_URL="$ACCOUNT_PORTAL_URL"
+if [[ -z "$RESOLVED_ACCOUNT_PORTAL_URL" ]]; then
+  RESOLVED_ACCOUNT_PORTAL_URL="$DEFAULT_ACCOUNT_PORTAL_URL"
+fi
+
+if [[ "$RESOLVED_ACCOUNT_PORTAL_URL" == http://127.0.0.1:* || "$RESOLVED_ACCOUNT_PORTAL_URL" == https://127.0.0.1:* || "$RESOLVED_ACCOUNT_PORTAL_URL" == http://localhost:* || "$RESOLVED_ACCOUNT_PORTAL_URL" == https://localhost:* ]]; then
+  echo "Warning: MacClipperAccountPortalURL resolves to $RESOLVED_ACCOUNT_PORTAL_URL. Builds installed on other Macs will not register installs or sync entitlements unless you override it with MACCLIPPER_ACCOUNT_PORTAL_URL or MACCLIPPER_API_BASE_URL." >&2
+fi
 
 cat > "$DIST_DIR/Contents/Logs/README.txt" <<'EOF'
 MacClipper writes runtime logs into this folder.

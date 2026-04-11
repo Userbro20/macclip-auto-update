@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MacClipper 4K Pro</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --background: #f2ece1;
+        --surface: rgba(255, 255, 255, 0.8);
+        --ink: #1d2524;
+        --forest: #27423a;
+        --clay: #b56d45;
+        --line: rgba(39, 66, 58, 0.16);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+        color: var(--ink);
+        background:
+          linear-gradient(145deg, rgba(181, 109, 69, 0.14), transparent 40%),
+          radial-gradient(circle at top right, rgba(39, 66, 58, 0.18), transparent 30%),
+          var(--background);
+      }
+
+      .card {
+        width: min(820px, 100%);
+        padding: 32px;
+        border-radius: 30px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        backdrop-filter: blur(14px);
+        box-shadow: 0 24px 80px rgba(29, 37, 36, 0.12);
+      }
+
+      h1 {
+        margin: 0 0 10px;
+        font-size: clamp(2rem, 5vw, 3.4rem);
+        line-height: 1;
+      }
+
+      p {
+        margin: 0 0 16px;
+        line-height: 1.65;
+        font-size: 1.04rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-top: 24px;
+      }
+
+      .panel {
+        padding: 18px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .label {
+        margin-bottom: 8px;
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--forest);
+      }
+
+      .value {
+        font-family: "SFMono-Regular", Menlo, monospace;
+        word-break: break-word;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 20px;
+        padding: 12px 18px;
+        border-radius: 999px;
+        text-decoration: none;
+        background: var(--forest);
+        color: #fff;
+      }
+
+      .note {
+        color: #4a5c58;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="card">
+      <h1>4K Pro Unlocks Live Here</h1>
+      <p>MacClipper now points at Firebase Hosting for install registration and entitlement sync. If you launched the app once, your install should already be registered and ready for Discord bot grants.</p>
+      <p class="note">This page is a lightweight portal placeholder. The current unlock path is: launch the app, copy the App UUID from MacClipper, then use the Discord bot to grant <strong>4k-pro</strong>.</p>
+      <div class="grid">
+        <div class="panel">
+          <div class="label">App UUID</div>
+          <div class="value" id="appUuid">Waiting for query string</div>
+        </div>
+        <div class="panel">
+          <div class="label">API Base</div>
+          <div class="value" id="apiBase">/api</div>
+        </div>
+      </div>
+      <a class="button" href="https://github.com/Userbro20/macclip-auto-update/releases">Download Latest MacClipper</a>
+    </section>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const appUuid = params.get("appUuid") || "No appUuid query parameter present";
+      document.getElementById("appUuid").textContent = appUuid;
+      document.getElementById("apiBase").textContent = `${window.location.origin}/api`;
+    </script>
+  </body>
+</html>

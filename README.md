@@ -77,6 +77,22 @@ cd /Users/meteorite/macclipper
 open dist/MacClipper.app
 ```
 
+If you install the app on another Mac, do not ship the default localhost API URL. Point the packaged app at a reachable backend first:
+
+```bash
+cd /Users/meteorite/macclipper
+MACCLIPPER_API_BASE_URL="https://your-api-host.example.com" ./scripts/package_app.sh
+```
+
+Or set the full purchase/account page URL directly:
+
+```bash
+cd /Users/meteorite/macclipper
+MACCLIPPER_ACCOUNT_PORTAL_URL="https://your-api-host.example.com/buy-4k.html" ./scripts/package_app.sh
+```
+
+Without that override, the bundled app keeps `MacClipperAccountPortalURL=http://127.0.0.1:4173/buy-4k.html`, which means installs on other Macs generate a local UUID but never register it with your API and cannot sync entitlements from the Discord bot.
+
 To package a specific architecture explicitly:
 
 ```bash

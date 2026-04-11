@@ -27,7 +27,19 @@ MacClipper now uses Sparkle for updates. New builds read a hosted Sparkle appcas
 export MACCLIPPER_RELEASE_NOTES="Sparkle migration release with embedded framework packaging."
 ```
 
-4. Run the release helper. Pass the final public HTTPS download URL if it differs from the default GitHub Releases path:
+4. For builds you install on other Macs, point the packaged app at a reachable backend before generating the release archive. Either set the API base URL:
+
+```bash
+export MACCLIPPER_API_BASE_URL="https://your-api-host.example.com"
+```
+
+Or set the full account portal URL directly:
+
+```bash
+export MACCLIPPER_ACCOUNT_PORTAL_URL="https://your-api-host.example.com/buy-4k.html"
+```
+
+5. Run the release helper. Pass the final public HTTPS download URL if it differs from the default GitHub Releases path:
 
 ```bash
 cd /Users/meteorite/macclipper
@@ -41,8 +53,8 @@ cd /Users/meteorite/macclipper
 ./scripts/release_with_update.sh https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2/MacClipper.zip
 ```
 
-5. Upload `dist/MacClipper.zip` to the exact URL referenced in the generated feed files.
-6. Push `appcast.xml` and `update-feed.json` so both new and old clients see the same release archive.
+6. Upload `dist/MacClipper.zip` to the exact URL referenced in the generated feed files.
+7. Push `appcast.xml` and `update-feed.json` so both new and old clients see the same release archive.
 
 ## What the release helper updates
 - `dist/MacClipper.zip`

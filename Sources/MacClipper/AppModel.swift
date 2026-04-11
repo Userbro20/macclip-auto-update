@@ -162,7 +162,7 @@ struct CaptureDeviceSettingsProfile: Codable {
 final class AppModel: ObservableObject {
     private static let lockedDiscordWebhookURL = "https://discord.com/api/webhooks/1491091224180818160/2MutnrfaVcaH5l2GM-XRhw90z_ec0apc6TQ2Pib_5y_9hxP3Q3uPhRUhmlc4bMhfI0RW"
     private static let captureDeviceProfilesKey = "captureDeviceProfiles"
-    private static let defaultPurchasePortalURLString = "http://127.0.0.1:4173/buy-4k.html"
+    private static let defaultPurchasePortalURLString = "https://macclipper-ce502.web.app/buy-4k.html"
 
     @Published var statusText: String = "Capture ready"
     @Published var isRecording: Bool = false
@@ -1406,10 +1406,14 @@ final class AppModel: ObservableObject {
             }
         }
 
+        let entitlementTarget = normalizedUserID.isEmpty
+            ? "this MacClipper install"
+            : "user \(normalizedUserID)"
+
         if addedFeatures.contains(PaidFeatureKey.fourKPro.rawValue) {
             captureResolutionPreset = .p2160
             videoQualityPreset = .highest
-            statusText = "4K Pro synced live for user \(normalizedUserID)."
+            statusText = "4K Pro synced live for \(entitlementTarget)."
         }
 
         guard !addedFeatures.isEmpty || !removedFeatures.isEmpty else { return }
@@ -1423,10 +1427,13 @@ final class AppModel: ObservableObject {
 
     private func celebrateActivatedFeature(_ feature: String, userID: String, isNewUnlock: Bool) {
         let featureTitle = FeatureActivationManager.featureDisplayName(feature)
+        let message = userID.isEmpty
+            ? "This MacClipper install can use \(featureTitle) now."
+            : "User \(userID) can use \(featureTitle) now."
         NSApplication.shared.activate(ignoringOtherApps: true)
         GameNotificationManager.shared.show(
             title: isNewUnlock ? "\(featureTitle) unlocked" : "\(featureTitle) synced",
-            message: "User \(userID) can use \(featureTitle) now.",
+            message: message,
             sourceApp: nil
         )
     }
