@@ -1,8 +1,8 @@
 {
-  "version": "1.2.4",
-  "build": 7,
-  "downloadURL": "https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.4/MacClipper.zip",
+  "version": "1.2.3",
+  "build": 6,
+  "downloadURL": "https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.3/MacClipper.zip",
   "sha256": "828fcfab847ba94e7b42cff14f098a4acabc4eb4d98faa370dc6fd762b516028",
-  "notes": "Cloud upload feature added! You can now upload your clips directly to Supabase cloud storage. Cloud upload buttons appear in the clip library for easy access.",
-  "publishedAt": "2026-04-16T12:00:00Z"
+  "notes": "Firebase-hosted entitlement sync release. Mac installs now register and sync against macclipper-ce502, Discord bot grants can provision unknown app UUIDs before first launch, and standalone entitlement sync now shows a clean in-app 4K Pro notification.",
+  "publishedAt": "2026-04-11T20:23:28Z"
 }

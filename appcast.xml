@@ -6,14 +6,14 @@
                 <description>Sparkle appcast for MacClipper releases.</description>
                 <language>en</language>
                 <item>
-                        <title>Version 1.2.4</title>
+                        <title>Version 1.2.3</title>
                         <link>https://github.com/Userbro20/macclip-auto-update/releases</link>
-                        <sparkle:version>7</sparkle:version>
-                        <sparkle:shortVersionString>1.2.4</sparkle:shortVersionString>
+                        <sparkle:version>6</sparkle:version>
+                        <sparkle:shortVersionString>1.2.3</sparkle:shortVersionString>
                         <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-                        <pubDate>Tue, 16 Apr 2026 12:00:00 +0000</pubDate>
-                        <description><![CDATA[<p>Cloud upload feature added! You can now upload your clips directly to Supabase cloud storage. Cloud upload buttons appear in the clip library for easy access.</p>]]></description>
-                        <enclosure url="https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.4/MacClipper.zip" sparkle:edSignature="dP2Y9uupmtvrP36Yh10My5KGSXqPWQK09aMnUH2ukg9OJnaDOoR2RKkr3rQXlbjQl/MIlh1/e2F4epK/gW2ZCw==" length="2549973" type="application/octet-stream" />
+                        <pubDate>Sat, 11 Apr 2026 20:23:28 +0000</pubDate>
+                        <description><![CDATA[<p>Firebase-hosted entitlement sync release. Mac installs now register and sync against macclipper-ce502, Discord bot grants can provision unknown app UUIDs before first launch, and standalone entitlement sync now shows a clean in-app 4K Pro notification.</p>]]></description>
+                        <enclosure url="https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.3/MacClipper.zip" sparkle:edSignature="dP2Y9uupmtvrP36Yh10My5KGSXqPWQK09aMnUH2ukg9OJnaDOoR2RKkr3rQXlbjQl/MIlh1/e2F4epK/gW2ZCw==" length="2549973" type="application/octet-stream" />
                 </item>
         </channel>
 </rss>
