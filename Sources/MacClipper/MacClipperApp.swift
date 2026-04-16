@@ -56,14 +56,11 @@ struct MenuContentView: View {
 
     @State private var activePage: MenuPage = .dashboard
 
-    private enum MenuPage {
+    enum MenuPage {
         case dashboard
         case library
+        case editor
         case settings
-    }
-
-    private var headerSummary: String {
-        model.selectedCaptureDisplaySummary
     }
 
     private var saveFolderName: String {
@@ -94,34 +91,71 @@ struct MenuContentView: View {
         return model.isBusy ? "Starting…" : "Trying to re-arm"
     }
 
+
     var body: some View {
         ZStack {
             MacClipperBackdrop(style: .menuGray)
 
-            SlatePanel(cornerRadius: 26, padding: 14) {
-                Group {
-                    switch activePage {
-                    case .dashboard:
-                        dashboardPage
-                    case .library:
-                        MenuClipLibraryPage {
-                            withAnimation(.easeInOut(duration: 0.16)) {
-                                activePage = .dashboard
-                            }
+            VStack(spacing: 0) {
+                // Tab bar
+                HStack(spacing: 0) {
+                    MenuTabButton(icon: "bolt", title: "Dashboard", isSelected: activePage == .dashboard) {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            activePage = .dashboard
                         }
-                        .environmentObject(model)
-                    case .settings:
-                        MenuSettingsPage {
-                            withAnimation(.easeInOut(duration: 0.16)) {
-                                activePage = .dashboard
-                            }
+                    }
+                    MenuTabButton(icon: "rectangle.stack", title: "Library", isSelected: activePage == .library) {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            activePage = .library
                         }
-                        .environmentObject(model)
+                    }
+                    MenuTabButton(icon: "scissors", title: "Editor", isSelected: activePage == .editor) {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            activePage = .editor
+                        }
+                    }
+                    MenuTabButton(icon: "gearshape", title: "Settings", isSelected: activePage == .settings) {
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            activePage = .settings
+                        }
                     }
                 }
-                .frame(width: 560)
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+
+                SlatePanel(cornerRadius: 26, padding: 14) {
+                    Group {
+                        switch activePage {
+                        case .dashboard:
+                            dashboardPage
+                        case .library:
+                            MenuClipLibraryPage {
+                                withAnimation(.easeInOut(duration: 0.16)) {
+                                    activePage = .dashboard
+                                }
+                            }
+                            .environmentObject(model)
+                        case .editor:
+                            MenuClipEditorPage {
+                                withAnimation(.easeInOut(duration: 0.16)) {
+                                    activePage = .dashboard
+                                }
+                            }
+                            .environmentObject(model)
+                        case .settings:
+                            MenuSettingsPage {
+                                withAnimation(.easeInOut(duration: 0.16)) {
+                                    activePage = .dashboard
+                                }
+                            }
+                            .environmentObject(model)
+                        }
+                    }
+                    .frame(width: 560)
+                }
+                .padding(12)
             }
-            .padding(12)
         }
         .onAppear {
             model.ensureRecordingActive()
@@ -146,7 +180,7 @@ struct MenuContentView: View {
                     title: "Live Capture",
                     subtitle: replaySubtitle,
                     systemImage: model.isRecording ? "bolt.circle.fill" : "pause.circle.fill",
-                    isSelected: model.isRecording,
+                        isSelected: activePage == .dashboard,
                     tint: model.isRecording ? SlateTheme.accent : SlateTheme.warning,
                     density: menuDensity
                 ) {
@@ -207,6 +241,69 @@ struct MenuContentView: View {
                 }
             }
 
+            // Cloud Connection Row
+            if !model.isCloudConnected {
+                SlateRow(
+                    title: "Connect to Cloud",
+                    subtitle: "Link your MacClipper account to sync clips automatically",
+                    systemImage: "cloud",
+                    isSelected: false,
+                    tint: SlateTheme.accent,
+                    density: menuDensity
+                ) {
+                    Button {
+                        model.openCloudConnectURL()
+                    } label: {
+                        SlateCapsuleButtonLabel(title: "Connect", systemImage: "link", density: menuDensity)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                SlateRow(
+                    title: "Cloud Connected",
+                    subtitle: "Your clips are automatically synced to the cloud",
+                    systemImage: "cloud.fill",
+                    isSelected: true,
+                    tint: SlateTheme.success,
+                    density: menuDensity
+                ) {
+                    Button {
+                        model.openCloudDashboard()
+                    } label: {
+                        SlateCapsuleButtonLabel(title: "My Clips", systemImage: "rectangle.stack.fill", density: menuDensity)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            SlatePanelDivider()
+            // --- PRO Section ---
+            SlateSectionCaption(title: "PRO", density: menuDensity)
+            SlateRow(
+                title: "Clip Editor",
+                subtitle: model.hasUnlocked4KPro ? "Edit your clips with advanced tools" : "Unlock PRO to use the Clip Editor",
+                systemImage: "pencil.and.outline",
+                isSelected: model.hasUnlocked4KPro,
+                tint: model.hasUnlocked4KPro ? SlateTheme.success : SlateTheme.warning,
+                density: menuDensity
+            ) {
+                Button {
+                    if model.hasUnlocked4KPro, let firstClip = model.clips.first {
+                        model.openClipEditor(for: firstClip)
+                    }
+                } label: {
+                    SlateCapsuleButtonLabel(
+                        title: model.hasUnlocked4KPro ? "Open Editor" : "PRO Only",
+                        systemImage: "star.fill",
+                        tint: SlateTheme.textPrimary,
+                        highlighted: model.hasUnlocked4KPro,
+                        density: menuDensity
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(!model.hasUnlocked4KPro || model.clips.isEmpty)
+            }
+
             SlatePanelDivider()
             SlateSectionCaption(title: "Actions", density: menuDensity)
 
@@ -251,7 +348,7 @@ struct MenuContentView: View {
                     title: "Settings",
                     subtitle: "Open the scrollable settings page inside this popup.",
                     systemImage: "gearshape.fill",
-                    isSelected: true,
+                        isSelected: activePage == .settings,
                     tint: SlateTheme.textPrimary,
                     density: menuDensity
                 ) {
@@ -267,7 +364,7 @@ struct MenuContentView: View {
             }
 
             HStack(spacing: 8) {
-                Text(headerSummary)
+                Text("MacClipper v1.2.4")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(SlateTheme.textTertiary)
                     .lineLimit(1)
@@ -316,25 +413,14 @@ struct MenuContentView: View {
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(SlateTheme.textSecondary)
 
-            if !model.websiteUserID.isEmpty {
-                HStack(spacing: 5) {
-                    Image(systemName: "person.text.rectangle")
-                        .font(.system(size: 11, weight: .bold))
-                    Text(model.websiteUserID)
-                        .lineLimit(1)
-                }
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(SlateTheme.success)
-            } else {
-                HStack(spacing: 5) {
-                    Image(systemName: "number.square.fill")
-                        .font(.system(size: 11, weight: .bold))
-                    Text(model.appUUIDShortDisplayText)
-                        .lineLimit(1)
-                }
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(SlateTheme.accent)
+            HStack(spacing: 5) {
+                Image(systemName: "number.square.fill")
+                    .font(.system(size: 11, weight: .bold))
+                Text(model.appUUIDShortDisplayText)
+                    .lineLimit(1)
             }
+            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+            .foregroundStyle(SlateTheme.accent)
 
             Spacer(minLength: 0)
 
