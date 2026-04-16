@@ -99,6 +99,7 @@ struct ClipLibraryView: View {
                                     .onAppear { replacePlayerItem(with: clip.url) }
                             }
 
+
                             HStack(spacing: 10) {
                                 Button("Play") {
                                     player.play()
@@ -125,6 +126,30 @@ struct ClipLibraryView: View {
                                     model.deleteClip(clip)
                                 }
                                 .buttonStyle(MacClipperSecondaryButtonStyle())
+
+                                if clip.isUploadedToCloud {
+                                    Button {
+                                        // Already uploaded - maybe show some feedback
+                                    } label: {
+                                        Image(systemName: "checkmark.icloud.fill")
+                                            .foregroundStyle(MacClipperTheme.cyan)
+                                    }
+                                    .buttonStyle(MacClipperSecondaryButtonStyle())
+                                    .help("Already uploaded to cloud")
+                                } else {
+                                    Button {
+                                        model.uploadClipToBase44(clip.url, sourceApp: clip.sourceApp)
+                                    } label: {
+                                        Image(systemName: "icloud.and.arrow.up")
+                                            .foregroundStyle(MacClipperTheme.cyan)
+                                    }
+                                    .buttonStyle(MacClipperSecondaryButtonStyle())
+                                    .help("Upload to cloud")
+                                }
+
+                                ClipEditButton(isProUnlocked: model.hasUnlocked4KPro) {
+                                    model.openClipEditor(for: clip)
+                                }
                             }
 
                             Spacer(minLength: 0)
@@ -187,15 +212,24 @@ struct ClipLibraryView: View {
 private struct ClipSidebarRow: View {
     let clip: SavedClip
     let isSelected: Bool
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             ClipSourceIconView(sourceApp: clip.sourceApp, size: 28)
 
             VStack(alignment: .leading, spacing: 7) {
-                Text(clip.url.deletingPathExtension().lastPathComponent)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .lineLimit(2)
+                HStack(alignment: .center, spacing: 6) {
+                    Text(clip.url.deletingPathExtension().lastPathComponent)
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .lineLimit(2)
+
+                    if clip.isUploadedToCloud {
+                        Image(systemName: "icloud.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(MacClipperTheme.cyan)
+                    }
+                }
 
                 Text(clip.sourceApp?.name ?? "App not detected")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -212,6 +246,23 @@ private struct ClipSidebarRow: View {
             }
 
             Spacer(minLength: 0)
+
+            if clip.isUploadedToCloud {
+                Image(systemName: "checkmark.icloud.fill")
+                    .foregroundStyle(MacClipperTheme.cyan)
+                    .font(.system(size: 16))
+                    .help("Already uploaded to cloud")
+            } else {
+                Button(action: {
+                    model.uploadClipToBase44(clip.url, sourceApp: clip.sourceApp)
+                }) {
+                    Image(systemName: "cloud.fill")
+                        .foregroundColor(.blue)
+                        .font(.system(size: 16))
+                }
+                .buttonStyle(.plain)
+                .help("Upload to Base44")
+            }
         }
         .padding(12)
         .background(
@@ -222,6 +273,50 @@ private struct ClipSidebarRow: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(isSelected ? MacClipperTheme.cyan.opacity(0.45) : Color.white.opacity(0.06), lineWidth: 1)
         )
+    }
+}
+
+private struct ClipEditButtonLabel: View {
+    let isProUnlocked: Bool
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "pencil.and.outline")
+            Text("Edit")
+
+            if isProUnlocked {
+                Text("PRO")
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.yellow)
+                    .padding(.horizontal, 4)
+                    .background(Color.black.opacity(0.7))
+                    .cornerRadius(4)
+            }
+        }
+    }
+}
+
+private struct ClipEditButton: View {
+    let isProUnlocked: Bool
+    let action: () -> Void
+
+    var body: some View {
+        if isProUnlocked {
+            Button(action: action) {
+                ClipEditButtonLabel(isProUnlocked: true)
+            }
+            .buttonStyle(MacClipperPrimaryButtonStyle())
+            .help("Edit this clip with the PRO Clip Editor")
+        } else {
+            Button(action: action) {
+                ClipEditButtonLabel(isProUnlocked: false)
+            }
+            .buttonStyle(MacClipperSecondaryButtonStyle())
+            .disabled(true)
+            .opacity(0.5)
+            .help("Unlock PRO to edit clips")
+        }
     }
 }
 
