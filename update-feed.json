@@ -1,8 +1,8 @@
 {
-  "version": "1.2.3",
-  "build": 6,
-  "downloadURL": "https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.3/MacClipper.zip",
-  "sha256": "828fcfab847ba94e7b42cff14f098a4acabc4eb4d98faa370dc6fd762b516028",
-  "notes": "Firebase-hosted entitlement sync release. Mac installs now register and sync against macclipper-ce502, Discord bot grants can provision unknown app UUIDs before first launch, and standalone entitlement sync now shows a clean in-app 4K Pro notification.",
-  "publishedAt": "2026-04-11T20:23:28Z"
+  "version": "1.2.4",
+  "build": 7,
+  "downloadURL": "https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.4/MacClipper.dmg",
+  "sha256": "30380be6510d5ef087c1f0f3e0a8119db8f814209c72cf17a7d0450cd922b6cc",
+  "notes": "Voice command setup is now built into onboarding and settings, microphone testing is available in-app, clip start and save sounds were refreshed, and MacClipper notifications now use the app icon.",
+  "publishedAt": "2026-04-25T15:03:50Z"
 }
