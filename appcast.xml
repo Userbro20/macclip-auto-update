@@ -6,14 +6,14 @@
                 <description>Sparkle appcast for MacClipper releases.</description>
                 <language>en</language>
                 <item>
-                        <title>Version 1.2.4</title>
+                        <title>Version 1.2.6</title>
                         <link>https://github.com/Userbro20/macclip-auto-update/releases</link>
-                        <sparkle:version>7</sparkle:version>
-                        <sparkle:shortVersionString>1.2.4</sparkle:shortVersionString>
+                        <sparkle:version>8</sparkle:version>
+                        <sparkle:shortVersionString>1.2.6</sparkle:shortVersionString>
                         <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-                        <pubDate>Sat, 25 Apr 2026 15:03:50 +0000</pubDate>
+                        <pubDate>Sat, 25 Apr 2026 15:10:57 +0000</pubDate>
                         <description><![CDATA[<p>Voice command setup is now built into onboarding and settings, microphone testing is available in-app, clip start and save sounds were refreshed, and MacClipper notifications now use the app icon.</p>]]></description>
-                        <enclosure url="https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.4/MacClipper.dmg" sparkle:edSignature="ZJ4/UOkIfZ3wGa+lPQZOyPxHgGXD1iJRHRg72r32Xwnm7Ua+Ffud5lAN4ABte+bM76szwip84SS5OjRbWYS9DA==" length="3109346" type="application/octet-stream" />
+                        <enclosure url="https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.6/MacClipper.dmg" sparkle:edSignature="PMa+fA0vI6P7O2FCz7Zle4g451epbO+HlQGfC5jJp/Js23UJlBKcrbT7cqcKIyK6cOX9VpUBSuj2+PBEVIqsAA==" length="3107503" type="application/octet-stream" />
                 </item>
         </channel>
 </rss>

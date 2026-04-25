@@ -1,8 +1,8 @@
 {
-  "version": "1.2.4",
-  "build": 7,
-  "downloadURL": "https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.4/MacClipper.dmg",
-  "sha256": "30380be6510d5ef087c1f0f3e0a8119db8f814209c72cf17a7d0450cd922b6cc",
+  "version": "1.2.6",
+  "build": 8,
+  "downloadURL": "https://github.com/Userbro20/macclip-auto-update/releases/download/v1.2.6/MacClipper.dmg",
+  "sha256": "3634374219025352a52b4105079b0b58ec1499d7cd1d5db6cd870000c0c88464",
   "notes": "Voice command setup is now built into onboarding and settings, microphone testing is available in-app, clip start and save sounds were refreshed, and MacClipper notifications now use the app icon.",
-  "publishedAt": "2026-04-25T15:03:50Z"
+  "publishedAt": "2026-04-25T15:10:57Z"
 }
